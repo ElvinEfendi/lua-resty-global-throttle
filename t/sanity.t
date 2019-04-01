@@ -1,4 +1,4 @@
-use Test::Nginx::Socket 'no_plan';
+use Test::Nginx::Socket::Lua 'no_plan';
 use Cwd qw(cwd);
 
 my $pwd = cwd();
@@ -11,25 +11,68 @@ run_tests();
 
 __DATA__
 
-=== TEST 1: hello, world
-Description of test.
+=== TEST 1: correctly detects when rate limit is not hit
 --- http_config eval: $::HttpConfig
 --- config
 location = /t {
-  access_by_lua_block {
+  content_by_lua_block {
     local global_throttle = require "resty.global_throttle"
 
-    local ip_throttle = global_throttle:new("ip_throttle", { rate = 200, window_size = 60, subject = "remote_addr" })
+    local ip_throttle = global_throttle:new("ip_throttle", { rate = 100, window_size = 2, subject = "remote_addr" })
+
+    for i=1,100 do
+      ip_throttle:process()
+    end
+      ngx.sleep(0.2)
+    if ip_throttle:should_throttle() then
+      ngx.say("failed")
+      return
+    end
+
     ip_throttle:process()
+    if not ip_throttle:should_throttle() then
+      return ngx.say("failed")
+    end
+
+    ngx.sleep(1.8) -- go to next window
+    ip_throttle:process()
+    if ip_throttle:should_throttle() then
+      ngx.say("failed 1")
+      return
+    end
+
+    ngx.say("OK")
+  }
+}
+--- request
+GET /t
+--- response_body
+OK
+--- error_code: 200
+--- ONLY
+
+=== TEST 2: correctly detects when rate limit is hit
+--- http_config eval: $::HttpConfig
+--- config
+location = /t {
+  content_by_lua_block {
+    local global_throttle = require "resty.global_throttle"
+
+    local ip_throttle = global_throttle:new("ip_throttle", { rate = 600, window_size = 3, subject = "remote_addr" })
+
+    for i=1,60 do
+      ip_throttle:process()
+    end
 
     if ip_throttle:should_throttle() then
       ngx.status = 403
-      ngx.say("hello, world!")
+      ngx.say("OK")
+      return
     end
   }
 }
 --- request
 GET /t
 --- response_body
-hello, world!
+OK
 --- error_code: 403
