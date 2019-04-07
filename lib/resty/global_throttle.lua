@@ -4,7 +4,7 @@ local sliding_window_new = require("resty.global_throttle.sliding_window").new
 local string_format = string.format
 local ngx_log = ngx.log
 
-local _M = { _VERSION = "0.1" }
+local _M = { _VERSION = "0.1.0" }
 local mt = { __index = _M }
 
 function _M.new(limit, window_size_in_seconds, options)

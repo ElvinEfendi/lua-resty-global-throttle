@@ -6,7 +6,7 @@ local ngx_now = ngx.now
 local _M = {}
 local mt = { __index = _M }
 
-local DEFAULT_WINDOW_SIZE = 60 * 1000
+local DEFAULT_WINDOW_SIZE = 60 * 1000 -- milliseconds
 
 local function window_started_at(self)
   local current_time = ngx.time()
