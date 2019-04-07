@@ -7,15 +7,14 @@ local ngx_log = ngx.log
 local _M = { _VERSION = "0.1" }
 local mt = { __index = _M }
 
--- TODO: name does not make sense, token maybe?
-function _M.new(name, limit, window_size_in_seconds, options)
+function _M.new(limit, window_size_in_seconds, options)
   local store, err = store_new(options)
   if err then
     return nil, string_format("error initiating a store: %s", err)
   end
   
   local window_size = window_size_in_seconds * 1000
-  local sw, err = sliding_window_new(store, name, window_size)
+  local sw, err = sliding_window_new(store, window_size)
   if err then
     return nil, string_format("error while creating sliding window instance: %s", err)
   end
@@ -27,8 +26,8 @@ function _M.new(name, limit, window_size_in_seconds, options)
   }, mt), nil
 end
 
-function _M.process(self)
-  local estimated_total_count, err = self.sliding_window:add_sample_and_estimate_total_count()
+function _M.process(self, key)
+  local estimated_total_count, err = self.sliding_window:add_sample_and_estimate_total_count(key)
   if err then
     return nil, err
   end

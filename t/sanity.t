@@ -23,7 +23,7 @@ location = /t {
   content_by_lua_block {
     local global_throttle = require "resty.global_throttle"
 
-    local ip_throttle, err = global_throttle.new("ip_throttle", 100, 2,  { provider = "shared_dict", name = "counters" })
+    local ip_throttle, err = global_throttle.new(100, 2,  { provider = "shared_dict", name = "counters" })
     if err then
       ngx.say(err)
       return
@@ -31,7 +31,7 @@ location = /t {
 
     local should_throttle
     for i=1,100 do
-      should_throttle = ip_throttle:process()
+      should_throttle = ip_throttle:process("key")
     end
       ngx.sleep(0.2)
     if should_throttle then
@@ -39,13 +39,13 @@ location = /t {
       return
     end
 
-    should_throttle = ip_throttle:process()
+    should_throttle = ip_throttle:process("key")
     if not should_throttle then
       return ngx.say("failed")
     end
 
     ngx.sleep(1.8) -- go to next window
-    should_throttle = ip_throttle:process()
+    should_throttle = ip_throttle:process("key")
     if should_throttle then
       ngx.say("failed 1")
       return

@@ -21,30 +21,25 @@ end
 -- counter key is made of the identifier of current sliding window instance,
 -- and identifier of the current window. This makes sure it is unique
 -- per given sliding window instance in the given window.
-local function get_counter_key(self, time)
+local function get_counter_key(self, sample, time)
   local id = get_id(self, time)
-  return string_format("%s.%s.counter", self.name, id)
+  return string_format("%s.%s.counter", sample, id)
 end
 
-local function last_sample_count(self)
+local function last_sample_count(self, sample)
   local a_window_ago_from_now = ngx_now() * 1000 - self.window_size
-  local last_counter_key = get_counter_key(self, a_window_ago_from_now)
+  local last_counter_key = get_counter_key(self, sample, a_window_ago_from_now)
 
   return self.store:get(last_counter_key) or 0
 end
 
-function _M.new(store, name, window_size)
-  if not name then
-    return nil, "name is required to unambigiously identify the sliding window instance"
-  end
-
+function _M.new(store, window_size)
   if not store or not store.incr or not store.get then
     return nil, "store parameter is necessary and has to implement \"incr\" and \"get\" functions"
   end
 
   return setmetatable({
     store = store,
-    name = name,
     window_size = window_size or DEFAULT_WINDOW_SIZE, -- milliseconds
   }, mt), nil
 end
@@ -52,8 +47,8 @@ end
 -- NOTE(elvinefendi): maybe also export add_sample and estimate_rate separately as well in addition
 -- because some consumers might not wanna need estimated rate after adding a new sample, so they
 -- can avoid store:get call when they just add a new sample
-function _M.add_sample_and_estimate_total_count(self)
-  local counter_key = get_counter_key(self, ngx_now() * 1000)
+function _M.add_sample_and_estimate_total_count(self, sample)
+  local counter_key = get_counter_key(self, sample, ngx_now() * 1000)
   local expiry = self.window_size * 2 / 1000 --seconds
 
   local count, err = self.store:incr(counter_key, 1, expiry)
