@@ -29,23 +29,24 @@ location = /t {
       return
     end
 
+    local should_throttle
     for i=1,100 do
-      ip_throttle:process()
+      should_throttle = ip_throttle:process()
     end
       ngx.sleep(0.2)
-    if ip_throttle:should_throttle() then
+    if should_throttle then
       ngx.say("failed 0")
       return
     end
 
-    ip_throttle:process()
-    if not ip_throttle:should_throttle() then
+    should_throttle = ip_throttle:process()
+    if not should_throttle then
       return ngx.say("failed")
     end
 
     ngx.sleep(1.8) -- go to next window
-    ip_throttle:process()
-    if ip_throttle:should_throttle() then
+    should_throttle = ip_throttle:process()
+    if should_throttle then
       ngx.say("failed 1")
       return
     end

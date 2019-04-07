@@ -7,11 +7,6 @@ local ngx_log = ngx.log
 local _M = { _VERSION = "0.1" }
 local mt = { __index = _M }
 
-local function window_started_at(self)
-  local current_time = ngx.time()
-  return (current_time -  (current_time % self.window_size)) * 1000
-end
-
 -- TODO: name does not make sense, token maybe?
 function _M.new(name, max_rate, window_size_in_seconds, options)
   local store, err = store_new(options)
@@ -33,17 +28,13 @@ function _M.new(name, max_rate, window_size_in_seconds, options)
 end
 
 function _M.process(self)
-  self.sliding_window:add_sample()
-end
+  local estimated_total_count, err = self.sliding_window:add_sample_and_estimate_total_count()
+  if err then
+    return nil, err
+  end
 
-function _M.should_throttle(self)
-  local last_count = self.sliding_window:last_sample_count()
-  local count = self.sliding_window:sample_count()
-  local last_rate = last_count / self.window_size
-  local elapsed_time = ngx.now() * 1000 - window_started_at(self)
-  local rate = last_rate * (self.window_size - elapsed_time) + count
-
-  return rate > self.max_rate
+  local should_throttle = estimated_total_count > self.max_rate
+  return should_throttle, nil
 end
 
 return _M
