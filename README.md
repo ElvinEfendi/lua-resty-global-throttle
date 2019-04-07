@@ -22,3 +22,10 @@ should_throttle = my_throttle:process("identifier of whatever it is your'er thro
 ```
 
 everytime before whatever it is you're throttling.
+
+
+### TODO
+
+ - Make it possible to pass a custom store implementation to `.new`
+ - Implement builtin store using https://github.com/openresty/lua-resty-lrucache
+ - Maybe change `.new` to always expect store instance to be passed.
