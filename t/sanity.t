@@ -16,39 +16,50 @@ run_tests();
 
 __DATA__
 
-=== TEST 1: correctly detects when rate limit is not hit
+=== TEST 1: throttle correctly counts samples and slides window
 --- http_config eval: $::HttpConfig
 --- config
-location = /t {
+location /protected {
   content_by_lua_block {
     local global_throttle = require "resty.global_throttle"
+    local client_throttle = global_throttle.new(100, 1, { provider = "shared_dict", name = "counters" })
 
-    local ip_throttle, err = global_throttle.new(100, 2,  { provider = "shared_dict", name = "counters" })
+    local args, err = ngx.req.get_uri_args()
     if err then
-      ngx.say(err)
+      ngx.exit(500)
       return
     end
 
-    local should_throttle
+    local key = args.api_client_id
+    local should_throttle, err = client_throttle:process(key)
+    if should_throttle then
+      ngx.status = 429
+      ngx.say("throttled")
+      return ngx.exit(ngx.HTTP_OK)
+    end
+
+    ngx.exit(ngx.HTTP_OK)
+  }
+}
+
+location = /t {
+  content_by_lua_block {
+    local res
     for i=1,100 do
-      should_throttle = ip_throttle:process("key")
+      res = ngx.location.capture("/protected?api_client_id=1")
+      if res.status ~= 200 then
+        ngx.exit(500)
+      end
     end
-      ngx.sleep(0.2)
-    if should_throttle then
-      ngx.say("failed 0")
-      return
-    end
-
-    should_throttle = ip_throttle:process("key")
-    if not should_throttle then
-      return ngx.say("failed")
+    res = ngx.location.capture("/protected?api_client_id=1")
+    if res.status ~= 429 then
+      return ngx.exit(500)
     end
 
-    ngx.sleep(1.8) -- go to next window
-    should_throttle = ip_throttle:process("key")
-    if should_throttle then
-      ngx.say("failed 1")
-      return
+    ngx.sleep(0.5) -- TODO(elvinefendi) come up with a better calculated number here
+    res = ngx.location.capture("/protected?api_client_id=1")
+    if res.status ~= 200 then
+      return ngx.exit(500)
     end
 
     ngx.say("OK")
@@ -60,29 +71,3 @@ GET /t
 OK
 --- error_code: 200
 --- ONLY
-
-=== TEST 2: correctly detects when rate limit is hit
---- http_config eval: $::HttpConfig
---- config
-location = /t {
-  content_by_lua_block {
-    local global_throttle = require "resty.global_throttle"
-
-    local ip_throttle = global_throttle:new("ip_throttle", { rate = 600, window_size = 3, subject = "remote_addr" })
-
-    for i=1,60 do
-      ip_throttle:process()
-    end
-
-    if ip_throttle:should_throttle() then
-      ngx.status = 403
-      ngx.say("OK")
-      return
-    end
-  }
-}
---- request
-GET /t
---- response_body
-OK
---- error_code: 403
