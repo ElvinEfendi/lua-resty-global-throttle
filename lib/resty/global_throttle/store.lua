@@ -1,5 +1,9 @@
-local memcached_store = require "resty.global_throttle.store.memcached"
-local shared_dict_store = require "resty.global_throttle.store.shared_dict"
+local string_format = string.format
+
+-- providers are lazily loaded based on given options.
+-- every store provider should implement `:incr(key, delta, expiry)` that returns new value and an error
+-- and `:get(key)` that returns value corresponding to given `ket` and an error if there's any.
+local providers = {}
 
 local _M = {}
 local mt = { __index = _M }
@@ -9,15 +13,15 @@ function _M.new(options)
     return nil, "options param is mandatory"
   end
 
-  if options.provider == "memcached" then
-    return memcached_store.new(options)
+  if not options.provider then
+    options.provider = "shared_dict"
   end
 
-  if options.provider == "shared_dict" then
-    return shared_dict_store.new(options)
+  if not providers[options.provider] then
+    providers[options.provider] = require(string_format("resty.global_throttle.store.%s", options.provider))
   end
 
-  return nil, "only memcached is supported"
+  return providers[options.provider].new(options), nil
 end
 
 return _M
