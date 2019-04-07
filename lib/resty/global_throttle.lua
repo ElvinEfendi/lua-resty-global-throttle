@@ -8,7 +8,7 @@ local _M = { _VERSION = "0.1" }
 local mt = { __index = _M }
 
 -- TODO: name does not make sense, token maybe?
-function _M.new(name, max_rate, window_size_in_seconds, options)
+function _M.new(name, limit, window_size_in_seconds, options)
   local store, err = store_new(options)
   if err then
     return nil, string_format("error initiating a store: %s", err)
@@ -22,7 +22,7 @@ function _M.new(name, max_rate, window_size_in_seconds, options)
 
   return setmetatable({
     sliding_window = sw,
-    max_rate = max_rate,
+    limit = limit,
     window_size = window_size
   }, mt), nil
 end
@@ -33,7 +33,7 @@ function _M.process(self)
     return nil, err
   end
 
-  local should_throttle = estimated_total_count > self.max_rate
+  local should_throttle = estimated_total_count > self.limit
   return should_throttle, nil
 end
 
