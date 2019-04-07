@@ -5,6 +5,11 @@ my $pwd = cwd();
 
 our $HttpConfig = qq(
     lua_package_path "$pwd/t/lib/?.lua;$pwd/lib/?.lua;;";
+    lua_shared_dict counters 1M;
+
+    init_by_lua_block {
+      require "resty.core"
+    }
 );
 
 run_tests();
@@ -18,14 +23,18 @@ location = /t {
   content_by_lua_block {
     local global_throttle = require "resty.global_throttle"
 
-    local ip_throttle = global_throttle:new("ip_throttle", { rate = 100, window_size = 2, subject = "remote_addr" })
+    local ip_throttle, err = global_throttle.new("ip_throttle", 100, 2,  { provider = "shared_dict", name = "counters" })
+    if err then
+      ngx.say(err)
+      return
+    end
 
     for i=1,100 do
       ip_throttle:process()
     end
       ngx.sleep(0.2)
     if ip_throttle:should_throttle() then
-      ngx.say("failed")
+      ngx.say("failed 0")
       return
     end
 
