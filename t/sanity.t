@@ -80,7 +80,7 @@ location = /t {
 
     for i=1,120 do
       -- ensure we are sending requests under the configured rate
-      local jitter = math.random(5) / 10000
+      local jitter = math.random(10) / 10000
       local delay = 0.5 / 100 + jitter
       ngx.sleep(delay)
 
