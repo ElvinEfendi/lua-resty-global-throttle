@@ -9,8 +9,8 @@ local mt = { __index = _M }
 local DEFAULT_WINDOW_SIZE = 60 * 1000 -- milliseconds
 
 local function window_started_at(self)
-  local current_time = ngx.time()
-  return (current_time -  (current_time % self.window_size)) * 1000
+  local now = ngx_now() * 1000
+  return now -  (now % self.window_size)
 end
 
 -- uniquely identifies the window associated with given time
@@ -56,7 +56,7 @@ function _M.add_sample_and_estimate_total_count(self, sample)
     return nil, err
   end
 
-  local last_count = last_sample_count(self)
+  local last_count = last_sample_count(self, sample)
   local last_rate = last_count / self.window_size
   local elapsed_time = ngx_now() * 1000 - window_started_at(self)
   local estimated_total_count = last_rate * (self.window_size - elapsed_time) + count
