@@ -1,6 +1,7 @@
 # lua-resty-global-throttle
 
 A general throttle implementation for Openresty. It can be used to throttle any action let it be a request or a function call.
+Currently only approximate sliding window rate limiting is implemented.
 
 First require the module:
 
@@ -26,6 +27,12 @@ everytime before whatever it is you're throttling.
 
 ### TODO
 
- - Make it possible to pass a custom store implementation to `.new`
- - Implement builtin store using https://github.com/openresty/lua-resty-lrucache
- - Maybe change `.new` to always expect store instance to be passed.
+ - [ ] Complete README
+ - [ ] Integrate Travis CI
+ - [ ] Maybe write unit test as well for better coverage
+ - [ ] Implement another store based on https://github.com/openresty/lua-resty-lrucache
+ - [ ] Test with memcached provider
+ - [ ] Support Sliding Window algorithm (where burts are allowed)
+ - [ ] Implement Leaky Bucket
+ - [ ] Provide an example use case for every implementation
+ - [ ] Redis store provider
