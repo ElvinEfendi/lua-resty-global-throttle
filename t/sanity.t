@@ -16,18 +16,19 @@ run_tests();
 
 __DATA__
 
-=== TEST 1: throttle correctly counts samples and slides window
+=== TEST 1: all cases
 --- http_config eval: $::HttpConfig
 --- config
 location /protected {
   content_by_lua_block {
     local global_throttle = require "resty.global_throttle"
-    local client_throttle = global_throttle.new(100, 1, { provider = "shared_dict", name = "counters" })
+    local client_throttle = global_throttle.new(100, 0.5, { provider = "shared_dict", name = "counters" })
 
     local args, err = ngx.req.get_uri_args()
     if err then
-      ngx.exit(500)
-      return
+      ngx.status = 500
+      ngx.say(err)
+      return ngx.exit(ngx.HTTP_OK)
     end
 
     local key = args.api_client_id
@@ -45,29 +46,76 @@ location /protected {
 location = /t {
   content_by_lua_block {
     local res
-    for i=1,100 do
-      res = ngx.location.capture("/protected?api_client_id=1")
-      if res.status ~= 200 then
-        ngx.exit(500)
-      end
-    end
-    res = ngx.location.capture("/protected?api_client_id=1")
-    if res.status ~= 429 then
-      return ngx.exit(500)
-    end
 
-    ngx.sleep(0.5) -- TODO(elvinefendi) come up with a better calculated number here
     res = ngx.location.capture("/protected?api_client_id=1")
     if res.status ~= 200 then
-      return ngx.exit(500)
+      ngx.status = res.status
+      ngx.say("expected request to not be throttled")
+      return ngx.exit(ngx.HTTP_OK)
     end
 
-    ngx.say("OK")
+    for i=1,100 do
+      res = ngx.location.capture("/protected?api_client_id=2")
+      if res.status ~= 200 then
+        ngx.status = res.status
+        ngx.say("expected burst to be allowed in the first window")
+        return ngx.exit(ngx.HTTP_OK)
+      end
+    end
+
+    ngx.sleep(0.5) -- next window
+    local throttled = false
+    for i=1,100 do
+      res = ngx.location.capture("/protected?api_client_id=2")
+      if res.status == 429 then
+        throttled = true
+        goto continue1
+      end
+    end
+    ::continue1::
+    if not throttled then
+      ngx.status = 500
+      ngx.say("expected subsequent burst to be throttled")
+    end
+
+    for i=1,120 do
+      -- ensure we are sending requests under the configured rate
+      local jitter = math.random(5) / 10000
+      local delay = 0.5 / 100 + jitter
+      ngx.sleep(delay)
+
+      res = ngx.location.capture("/protected?api_client_id=2")
+      if res.status ~= 200 then
+        ngx.status = res.status
+        ngx.say("expected all requests to be succeeded since they we being sent under the configured rate")
+        return ngx.exit(ngx.HTTP_OK)
+      end
+    end
+
+    throttled = false
+    for i=1,100 do
+      res = ngx.location.capture("/protected?api_client_id=2")
+      if res.status == 429 then
+        throttled = true
+        goto continue2
+      end
+      -- ensure we are sending requests over (delay < 0.5 / 100) the configured rate
+      local delay = math.random(5) / 1000
+      ngx.sleep(delay)
+    end
+    ::continue2::
+    if not throttled then
+      ngx.status = 500
+      ngx.say("expected requests to be throttled because they were being sent faster than configured rate")
+      return ngx.exit(ngx.HTTP_OK)
+    end
+    ngx.status = res.status
+    ngx.print(res.body)
+    ngx.exit(ngx.HTTP_OK)
   }
 }
 --- request
 GET /t
 --- response_body
-OK
---- error_code: 200
---- ONLY
+throttled
+--- error_code: 429
