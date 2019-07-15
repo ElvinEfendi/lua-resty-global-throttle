@@ -7,10 +7,14 @@ local ngx_log = ngx.log
 local _M = { _VERSION = "0.1.0" }
 local mt = { __index = _M }
 
-function _M.new(limit, window_size_in_seconds, options)
-  local store, err = store_new(options)
-  if err then
-    return nil, string_format("error initiating a store: %s", err)
+function _M.new(limit, window_size_in_seconds, store_options)
+  if not store_options then
+    return nil, "'store_options' param is missing"
+  end
+
+  local store, err = store_new(store_options)
+  if not store then
+    return nil, string_format("error initiating the store: %s", err)
   end
   
   local window_size = window_size_in_seconds * 1000

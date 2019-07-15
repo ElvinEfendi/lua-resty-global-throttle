@@ -10,18 +10,30 @@ local mt = { __index = _M }
 
 function _M.new(options)
   if not options then
-    return nil, "options param is mandatory"
+    return nil, "'options' param is missing"
   end
 
   if not options.provider then
-    options.provider = "shared_dict"
+    return nil, "'provider' attribute is missing"
   end
 
   if not providers[options.provider] then
-    providers[options.provider] = require(string_format("resty.global_throttle.store.%s", options.provider))
+    local provider_implementation_path = string_format("resty.global_throttle.store.%s", options.provider)
+    local provider_implementation = require(provider_implementation_path)
+
+    if not provider_implementation then
+      return nil, string_format("given 'store' implementation was not found in: '%s'", provider_implementation_path)
+    end
+
+    providers[options.provider] = provider_implementation
   end
 
-  return providers[options.provider].new(options), nil
+  local provider_implementation_instance, err = providers[options.provider].new(options)
+  if not provider_implementation_instance then
+    return nil, err
+  end
+
+  return provider_implementation_instance, nil
 end
 
 return _M
