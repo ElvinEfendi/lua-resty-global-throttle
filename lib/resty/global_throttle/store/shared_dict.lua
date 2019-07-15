@@ -19,7 +19,7 @@ function _M.new(options)
 end
 
 function _M.incr(self, key, delta, expiry)
-  new_value, err, forcible = self.dict:incr(key, delta, 0, expiry)
+  local new_value, err, forcible = self.dict:incr(key, delta, 0, expiry)
   if err then
     return nil, err
   end

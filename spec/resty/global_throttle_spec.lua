@@ -2,6 +2,7 @@ describe("global_throttle", function()
   local global_throttle
 
   before_each(function()
+    ngx.shared.my_global_throttle:flush_all()
     global_throttle = require("resty.global_throttle")
   end)
 
@@ -41,10 +42,60 @@ describe("global_throttle", function()
   end)
 
   describe("process", function()
-    describe("Lua shared dict", function()
+    describe("with Lua shared dict", function()
+      it("does not throttle when within limits", function()
+        local my_throttle, err = global_throttle.new(10, 2,
+          { provider = "shared_dict", name = "my_global_throttle" } )
+
+        local exceeding_limit, err
+        for i=1,10,1 do
+          exceeding_limit, err = my_throttle:process("client1")
+        end
+
+        assert.is_nil(err)
+        assert.is_false(exceeding_limit)
+      end)
+
+      it("throttles when over limit", function()
+        local my_throttle, err = global_throttle.new(10, 2,
+          { provider = "shared_dict", name = "my_global_throttle" } )
+
+        local exceeding_limit, err
+        for i=1,10,1 do
+          exceeding_limit, err = my_throttle:process("client1")
+        end
+
+        assert.is_nil(err)
+        assert.is_false(exceeding_limit)
+
+        exceeding_limit, err = my_throttle:process("client1")
+
+        assert.is_nil(err)
+        assert.is_true(exceeding_limit)
+      end)
+
+      it("does not throttle if enough time passed", function()
+        local my_throttle, err = global_throttle.new(10, 2,
+          { provider = "shared_dict", name = "my_global_throttle" } )
+
+        local exceeding_limit, err
+        for i=1,10,1 do
+          exceeding_limit, err = my_throttle:process("client1")
+        end
+
+        assert.is_nil(err)
+        assert.is_false(exceeding_limit)
+
+        ngx.sleep(1.5)
+
+        exceeding_limit, err = my_throttle:process("client1")
+
+        assert.is_nil(err)
+        assert.is_false(exceeding_limit)
+      end)
     end)
 
-    describe("memcached", function()
+    describe("with memcached", function()
     end)
   end)
 end)
