@@ -1,5 +1,7 @@
 local memcached = require "resty.memcached"
 
+local string_format = string.format
+
 local _M = {}
 local mt = { __index = _M }
 

@@ -34,8 +34,14 @@ local function last_sample_count(self, sample)
 end
 
 function _M.new(store, window_size)
-  if not store or not store.incr or not store.get then
-    return nil, "store parameter is necessary and has to implement \"incr\" and \"get\" functions"
+  if not store then
+    return nil, "'store' parameter is missing"
+  end
+  if not store.incr then
+    return nil, "'store' has to implement 'incr' function"
+  end
+  if not store.get then
+    return nil, "'store' has to implement 'get' function"
   end
 
   return setmetatable({
