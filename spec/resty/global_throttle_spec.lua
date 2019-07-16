@@ -1,13 +1,12 @@
 describe("global_throttle", function()
   local global_throttle
 
-  before_each(function()
-    ngx.shared.my_global_throttle:flush_all()
+  setup(function()
     global_throttle = require("resty.global_throttle")
   end)
 
   after_each(function()
-    package.loaded["resty.global_throttle"] = nil
+    ngx.shared.my_global_throttle:flush_all()
   end)
 
   describe("new", function()
@@ -86,12 +85,13 @@ describe("global_throttle", function()
         assert.is_nil(err)
         assert.is_false(exceeding_limit)
 
-        ngx.sleep(1.5)
+        -- make sure we go to next window
+        ngx_time_travel(2, function()
+          exceeding_limit, err = my_throttle:process("client1")
 
-        exceeding_limit, err = my_throttle:process("client1")
-
-        assert.is_nil(err)
-        assert.is_false(exceeding_limit)
+          assert.is_nil(err)
+          assert.is_false(exceeding_limit)
+        end)
       end)
     end)
 

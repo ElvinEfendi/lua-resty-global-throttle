@@ -33,4 +33,22 @@ do
   setmetatable(_G, { __newindex = newindex })
 end
 
+do
+  -- following mocking let's us travel in time
+
+  local time_travel = 0
+
+  local ngx_now = ngx.now
+  _G.ngx.now = function()
+    return ngx_now() + time_travel
+  end
+
+  -- this function can be used in tests to travel in time
+  _G.ngx_time_travel = function(offset, f)
+    time_travel = offset
+    f()
+    time_travel = 0
+  end
+end
+
 busted_runner({ standalone = false })
