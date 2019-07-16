@@ -6,7 +6,6 @@ local string_format = string.format
 local providers = {}
 
 local _M = {}
-local mt = { __index = _M }
 
 function _M.new(options)
   if not options then

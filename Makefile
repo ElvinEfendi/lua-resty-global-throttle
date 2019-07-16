@@ -1,15 +1,18 @@
 .PHONY: image
-
 image:
 	docker build -t test-cli .
 
-.PHONY: test
+.PHONY: check
+check:
+	# TODO: move this to into a script
+	docker run -w /lua --rm -it -v ${PWD}:/lua test-cli luacheck -q lib
+	docker run -w /lua --rm -it -v ${PWD}:/lua test-cli lj-releng lib/resty/*.lua lib/resty/**/*.lua lib/resty/**/**/*.lua
 
+.PHONY: test
 test:
 	docker run -w /lua --rm -it -v ${PWD}:/lua test-cli prove -r t/
 
 .PHONY: spec
-
 spec:
 	$(eval CONTAINER_ID = $(shell docker run -d -p 11211:11211 --rm --name memcached bitnami/memcached:latest))
 	$(eval MEMCACHED_HOST = $(shell docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(CONTAINER_ID)))

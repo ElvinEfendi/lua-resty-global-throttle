@@ -12,13 +12,15 @@ function _M.new(options)
   end
 
   if options.connect_timeout and options.connect_timeout > 0 then
-    local ok, err = memc:set_timeout(options.connect_timeout)
+    local ok
+    ok, err = memc:set_timeout(options.connect_timeout)
     if not ok then
       return nil, string_format("error setting connect timeout: %s", err)
     end
   end
 
-  local ok, err = memc:connect(options.host, options.port)
+  local ok
+  ok, err = memc:connect(options.host, options.port)
   if not ok then
     return nil, string_format("failed to connect: %s", err)
   end
@@ -29,15 +31,16 @@ function _M.new(options)
 end
 
 function _M.incr(self, key, delta, expiry)
-  local new_value, err = memc:incr(key, delta)
+  local new_value, err = self.memc:incr(key, delta)
   if err then
     return nil, err
   end
 
   if new_value == delta then
     -- the key just got added, set its expiry
-    local ok, err = memc:touch(key, expiry)
-    if not err then
+    local ok
+    ok, err = self.memc:touch(key, expiry)
+    if not ok then
       return nil, err
     end
   end
@@ -46,7 +49,7 @@ function _M.incr(self, key, delta, expiry)
 end
 
 function _M.get(self, key)
-  local value, flags, err = memc:get(key)
+  local value, flags, err = self.memc:get(key)
   if err then
     return nil, err
   end

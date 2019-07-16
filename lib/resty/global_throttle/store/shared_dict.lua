@@ -1,4 +1,6 @@
 local string_format = string.format
+local ngx_log = ngx.log
+local ngx_WARN = ngx.WARN
 
 local _M = {}
 local mt = { __index = _M }
@@ -25,7 +27,7 @@ function _M.incr(self, key, delta, expiry)
   end
 
   if forcible then
-    ngx_log(ngx.WARN, "shared dictionary is full, removed valid key(s) to store the new one")
+    ngx_log(ngx_WARN, "shared dictionary is full, removed valid key(s) to store the new one")
   end
 
   return new_value, nil

@@ -1,8 +1,8 @@
 local store_new = require("resty.global_throttle.store").new
 local sliding_window_new = require("resty.global_throttle.sliding_window").new
 
+local setmetatable = setmetatable
 local string_format = string.format
-local ngx_log = ngx.log
 
 local _M = { _VERSION = "0.1.0" }
 local mt = { __index = _M }
@@ -16,11 +16,12 @@ function _M.new(limit, window_size_in_seconds, store_options)
   if not store then
     return nil, string_format("error initiating the store: %s", err)
   end
-  
+
   local window_size = window_size_in_seconds * 1000
-  local sw, err = sliding_window_new(store, window_size)
-  if err then
-    return nil, string_format("error while creating sliding window instance: %s", err)
+  local sw
+  sw, err = sliding_window_new(store, window_size)
+  if not sw then
+    return nil, "error while creating sliding window instance: " .. err
   end
 
   return setmetatable({
@@ -31,7 +32,8 @@ function _M.new(limit, window_size_in_seconds, store_options)
 end
 
 function _M.process(self, key)
-  local estimated_total_count, err = self.sliding_window:add_sample_and_estimate_total_count(key)
+  local estimated_total_count, err =
+    self.sliding_window:add_sample_and_estimate_total_count(key)
   if err then
     return nil, err
   end
