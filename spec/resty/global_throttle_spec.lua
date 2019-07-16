@@ -80,18 +80,62 @@ describe("global_throttle", function()
         local exceeding_limit, err
         for i=1,10,1 do
           exceeding_limit, err = my_throttle:process("client1")
+          assert.is_nil(err)
+          assert.is_false(exceeding_limit)
         end
 
-        assert.is_nil(err)
-        assert.is_false(exceeding_limit)
-
         -- make sure we go to next window
-        ngx_time_travel(2, function()
+        ngx_time_travel(2.1, function()
           exceeding_limit, err = my_throttle:process("client1")
-
           assert.is_nil(err)
           assert.is_false(exceeding_limit)
         end)
+      end)
+
+      it("does not throttle when rate is under the limit", function()
+        local my_throttle, err = global_throttle.new(10, 2,
+          { provider = "shared_dict", name = "my_global_throttle" } )
+
+        local exceeding_limit, err
+        local offset = 0
+        -- this is chosen based on window size / limit
+        -- extra 0.05 seconds added to avoid race
+        local step = 0.25
+        for i=1,100,1 do
+          ngx_time_travel(offset, function()
+            exceeding_limit, err = my_throttle:process("client1")
+            assert.is_nil(err)
+            assert.is_false(exceeding_limit)
+          end)
+          offset = offset + step
+        end
+      end)
+
+      it("does not allow spike in subsequent windows", function()
+        local my_throttle, err = global_throttle.new(10, 2,
+          { provider = "shared_dict", name = "my_global_throttle" } )
+
+        local exceeding_limit, err
+        for i=1,10,1 do
+          exceeding_limit, err = my_throttle:process("client1")
+          assert.is_nil(err)
+          assert.is_false(exceeding_limit)
+        end
+
+        -- make sure we go to next window
+        ngx_time_travel(2.1, function()
+          for i=1,10,1 do
+            exceeding_limit, err = my_throttle:process("client1")
+            assert.is_nil(err)
+          end
+        end)
+        assert.is_true(exceeding_limit)
+      end)
+
+      it("shares counter between different instances given the same store", function()
+      end)
+
+      it("returns nil and error in case of processing failure", function()
       end)
     end)
 

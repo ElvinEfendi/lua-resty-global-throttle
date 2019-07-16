@@ -11,6 +11,7 @@ do
   -- if there's more constants need to be whitelisted for test runs, add here.
   local GLOBALS_ALLOWED_IN_TEST = {
     _TEST = true,
+    ngx_time_travel = true,
   }
   local newindex = function(table, key, value)
     rawset(table, key, value)
