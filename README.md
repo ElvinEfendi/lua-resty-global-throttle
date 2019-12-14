@@ -32,7 +32,7 @@ everytime before whatever it is you're throttling.
  - [ ] Maybe write unit test as well for better coverage
  - [ ] Implement another store based on https://github.com/openresty/lua-resty-lrucache
  - [ ] Test with memcached provider
- - [ ] Support Sliding Window algorithm (where burts are allowed)
+ - [ ] Support Sliding Window algorithm (where bursts are allowed)
  - [ ] Implement Leaky Bucket
  - [ ] Provide an example use case for every implementation
  - [ ] Redis store provider
