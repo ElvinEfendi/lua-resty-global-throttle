@@ -1,0 +1,15 @@
+function cleanup {
+  echo "Killing memcached docker container..."
+  docker kill $CONTAINER_ID
+}
+trap cleanup EXIT
+
+MEMCACHED_PORT="11211"
+CONTAINER_ID=$(docker run -d -p $MEMCACHED_PORT:$MEMCACHED_PORT --rm --name memcached bitnami/memcached:latest)
+MEMCACHED_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $CONTAINER_ID)
+
+while [[ -z $(echo stats | nc 127.0.0.1 $MEMCACHED_PORT) ]]
+do
+  echo "Waiting for memcached..."
+  sleep 2
+done
