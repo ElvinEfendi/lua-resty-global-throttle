@@ -43,3 +43,7 @@ Storage providers are implemented in `lib/resty/global_throttle/store/`.
  - [ ] Implement Leaky Bucket
  - [ ] Provide an example use case for every implementation
  - [ ] Redis store provider
+
+### References
+
+- Cloudflare's blog post on approximate sliding window: https://blog.cloudflare.com/counting-things-a-lot-of-different-things/
