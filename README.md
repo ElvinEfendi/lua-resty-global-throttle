@@ -1,6 +1,14 @@
+# lua-resty-global-throttle
+
 [![Build Status](https://travis-ci.com/ElvinEfendi/lua-resty-global-throttle.svg?branch=master)](https://travis-ci.com/ElvinEfendi/lua-resty-global-throttle)
 
-# lua-resty-global-throttle
+### Installation
+
+```
+luarocks install lua-resty-global-throttle
+```
+
+### Usage
 
 A general throttle implementation for Openresty. It can be used to throttle any action let it be a request or a function call.
 Currently only approximate sliding window rate limiting is implemented.
@@ -23,7 +31,6 @@ Finally you call following everytime before whatever it is you're throttling:
 ```
 local should_throttle, err = my_throttle:process("identifier of whatever it is your are throttling")
 ```
-
 
 ### Test
 
