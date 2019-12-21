@@ -33,16 +33,16 @@ end
 function _M.incr(self, key, delta, expiry)
   local new_value, err = self.memc:incr(key, delta)
   if err then
-    return nil, err
-  end
-
-  if new_value == delta then
-    -- the key just got added, set its expiry
+    if err ~= "NOT_FOUND" then
+      return nil, err
+    end
+    
     local ok
-    ok, err = self.memc:touch(key, expiry)
+    ok, err = self.memc:add(key, delta, expiry)
     if not ok then
       return nil, err
     end
+    new_value = delta
   end
 
   return new_value, nil
@@ -57,6 +57,10 @@ function _M.get(self, key)
     return nil, "not found"
   end
   return value, nil
+end
+
+function _M.__flush_all(self)
+  return self.memc:flush_all()
 end
 
 return _M

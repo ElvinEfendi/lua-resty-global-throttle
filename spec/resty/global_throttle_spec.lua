@@ -5,10 +5,6 @@ describe("global_throttle", function()
     global_throttle = require("resty.global_throttle")
   end)
 
-  after_each(function()
-    ngx.shared.my_global_throttle:flush_all()
-  end)
-
   describe("new", function()
     it("requires store parameter", function()
       local my_throttle, err = global_throttle.new(100, 5)
@@ -42,10 +38,20 @@ describe("global_throttle", function()
 
   describe("process", function()
     describe("with Lua shared dict", function()
-      it("does not throttle when within limits", function()
-        local my_throttle, err = global_throttle.new(10, 2,
-          { provider = "shared_dict", name = "my_global_throttle" } )
+      local my_throttle
 
+      before_each(function()
+        local err
+        my_throttle, err = global_throttle.new(10, 2,
+          { provider = "shared_dict", name = "my_global_throttle" } )
+        assert.is_nil(err)
+      end)
+
+      after_each(function()
+        ngx.shared.my_global_throttle:flush_all()
+      end)
+
+      it("does not throttle when within limits", function()
         local exceeding_limit, err
         for i=1,10,1 do
           exceeding_limit, err = my_throttle:process("client1")
@@ -56,9 +62,6 @@ describe("global_throttle", function()
       end)
 
       it("throttles when over limit", function()
-        local my_throttle, err = global_throttle.new(10, 2,
-          { provider = "shared_dict", name = "my_global_throttle" } )
-
         local exceeding_limit, err
         for i=1,10,1 do
           exceeding_limit, err = my_throttle:process("client1")
@@ -74,9 +77,6 @@ describe("global_throttle", function()
       end)
 
       it("does not throttle if enough time passed", function()
-        local my_throttle, err = global_throttle.new(10, 2,
-          { provider = "shared_dict", name = "my_global_throttle" } )
-
         local exceeding_limit, err
         for i=1,10,1 do
           exceeding_limit, err = my_throttle:process("client1")
@@ -93,9 +93,6 @@ describe("global_throttle", function()
       end)
 
       it("does not throttle when rate is under the limit", function()
-        local my_throttle, err = global_throttle.new(10, 2,
-          { provider = "shared_dict", name = "my_global_throttle" } )
-
         local exceeding_limit, err
         local offset = 0
         -- this is chosen based on window size / limit
@@ -112,9 +109,6 @@ describe("global_throttle", function()
       end)
 
       it("does not allow spike in subsequent windows", function()
-        local my_throttle, err = global_throttle.new(10, 2,
-          { provider = "shared_dict", name = "my_global_throttle" } )
-
         local exceeding_limit, err
         for i=1,10,1 do
           exceeding_limit, err = my_throttle:process("client1")
@@ -133,13 +127,63 @@ describe("global_throttle", function()
       end)
 
       it("shares counter between different instances given the same store", function()
-      end)
+        local exceeding_limit
+        for i=1,10,1 do
+          exceeding_limit, err = my_throttle:process("client1")
+        end
 
-      it("returns nil and error in case of processing failure", function()
+        assert.is_nil(err)
+        assert.is_false(exceeding_limit)
+
+        local my_other_throttle, err = global_throttle.new(10, 2,
+          { provider = "shared_dict", name = "my_global_throttle" } )
+        assert.is_nil(err)
+        
+        exceeding_limit, err = my_other_throttle:process("client1")
+
+        assert.is_nil(err)
+        assert.is_true(exceeding_limit)
       end)
     end)
 
     describe("with memcached", function()
+      local my_throttle
+
+      before_each(function()
+        local err
+        my_throttle, err = global_throttle.new(10, 2,
+          { provider = "memcached", host = os.getenv("MEMCACHED_HOST"), port = "11211" } )
+        assert.is_nil(err)
+      end)
+
+      after_each(function()
+        my_throttle.sliding_window.store:__flush_all()
+      end)
+
+      it("does not throttle when within limits", function()
+        local exceeding_limit, err
+        for i=1,10,1 do
+          exceeding_limit, err = my_throttle:process("client1")
+        end
+
+        assert.is_nil(err)
+        assert.is_false(exceeding_limit)
+      end)
+
+      it("throttles when over limit", function()
+        local exceeding_limit, err
+        for i=1,10,1 do
+          exceeding_limit, err = my_throttle:process("client2")
+        end
+
+        assert.is_nil(err)
+        assert.is_false(exceeding_limit)
+
+        exceeding_limit, err = my_throttle:process("client2")
+
+        assert.is_nil(err)
+        assert.is_true(exceeding_limit)
+      end)
     end)
   end)
 end)

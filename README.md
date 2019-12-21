@@ -19,7 +19,7 @@ local my_throttle, err = global_throttle.new(100, 2,  { provider = "shared_dict"
 Finally you call
 
 ```
-should_throttle = my_throttle:process("identifier of whatever it is your'er throttling")
+should_throttle = my_throttle:process("identifier of whatever it is your are throttling")
 ```
 
 everytime before whatever it is you're throttling.
@@ -27,9 +27,7 @@ everytime before whatever it is you're throttling.
 
 ### TODO
 
- - [ ] Complete README
  - [ ] Integrate Travis CI
- - [ ] Maybe write unit test as well for better coverage
  - [ ] Implement another store based on https://github.com/openresty/lua-resty-lrucache
  - [ ] Test with memcached provider
  - [ ] Support Sliding Window algorithm (where bursts are allowed)
