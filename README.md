@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/ElvinEfendi/lua-resty-global-throttle.svg?branch=master)](https://travis-ci.com/ElvinEfendi/lua-resty-global-throttle)
+
 # lua-resty-global-throttle
 
 A general throttle implementation for Openresty. It can be used to throttle any action let it be a request or a function call.
