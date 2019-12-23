@@ -44,6 +44,8 @@ The library is designed to be extendable. Currently only approximate sliding win
 
 Storage providers are implemented in `lib/resty/global_throttle/store/`.
 
+`dev/README.md` has instructions showing how to do local development and iterate quickly.
+
 ### TODO
 
  - [ ] Integrate Travis CI
