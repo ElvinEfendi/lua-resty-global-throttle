@@ -48,10 +48,9 @@ Storage providers are implemented in `lib/resty/global_throttle/store/`.
 
 ### TODO
 
- - [ ] Integrate Travis CI
- - [ ] Implement another store based on https://github.com/openresty/lua-resty-lrucache
  - [ ] Support Sliding Window algorithm (where bursts are allowed)
  - [ ] Implement Leaky Bucket
+ - [ ] Implement another store based on https://github.com/openresty/lua-resty-lrucache
  - [ ] Provide an example use case for every implementation
  - [ ] Redis store provider
 
