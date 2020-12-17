@@ -33,13 +33,19 @@ end
 
 function _M.process(self, key)
   local estimated_total_count, err =
-    self.sliding_window:add_sample_and_estimate_total_count(key)
-  if err then
+    self.sliding_window:estimated_total_count(key)
+  if not estimated_total_count then
     return nil, err
   end
 
   local should_throttle = estimated_total_count > self.limit
-  return should_throttle, nil
+  if should_throttle then
+    -- we don't count throttled samples
+    return true, nil
+  end
+
+  err = self.sliding_window:add_sample(key)
+  return nil, err
 end
 
 return _M
