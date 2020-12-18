@@ -13,4 +13,4 @@ jobs:
 
       - name: Spec
         run: |
-          scripts/spec
+          docker-compose exec -T proxy /scripts/spec

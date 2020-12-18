@@ -4,6 +4,4 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-source scripts/_memcached
-
 docker run -w /lua --rm -it -v ${PWD}:/lua test-cli prove -r t/

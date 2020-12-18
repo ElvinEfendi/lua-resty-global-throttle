@@ -1,9 +1,0 @@
-services:
-  - docker
-
-before_install:
-- make image
-
-script:
-- make spec
-#- make test TODO: this is flaky, fix this before enabling
