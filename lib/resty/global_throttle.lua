@@ -1,13 +1,17 @@
 local store_new = require("resty.global_throttle.store").new
 local sliding_window_new = require("resty.global_throttle.sliding_window").new
 
+local ngx_log = ngx.log
+local ngx_ERR = ngx.ERR
+local ngx_WARN = ngx.WARN
+local ngx_timer_at = ngx.timer.at
 local setmetatable = setmetatable
 local string_format = string.format
 
 local _M = { _VERSION = "0.1.0" }
 local mt = { __index = _M }
 
-function _M.new(limit, window_size_in_seconds, store_options)
+function _M.new(limit, window_size_in_seconds, decision_cache, store_options)
   if not store_options then
     return nil, "'store_options' param is missing"
   end
@@ -19,7 +23,7 @@ function _M.new(limit, window_size_in_seconds, store_options)
 
   local window_size = window_size_in_seconds * 1000
   local sw
-  sw, err = sliding_window_new(store, limit, window_size)
+  sw, err = sliding_window_new(store, limit, window_size, decision_cache)
   if not sw then
     return nil, "error while creating sliding window instance: " .. err
   end
@@ -27,45 +31,42 @@ function _M.new(limit, window_size_in_seconds, store_options)
   return setmetatable({
     sliding_window = sw,
     limit = limit,
-    window_size = window_size
+    window_size = window_size,
+    process_async = store.is_remote,
+    decision_cache = decision_cache,
   }, mt), nil
 end
 
-function _M.process(self, key)
-  local estimated_total_count, err =
-    self.sliding_window:estimated_total_count(key)
-  if not estimated_total_count then
-    return nil, "estimated_total_count failed with: " .. err
-  end
-
-  local should_throttle = estimated_total_count >= self.limit
-  if should_throttle then
-    -- we don't count throttled samples
-    return true, nil
-  end
-
-  err = self.sliding_window:add_sample(key)
+local function process(self, key)
+  local limit_exceeding, delay, err = self.sliding_window:process_sample(key)
   if err then
-    return should_throttle, "add_sample failed with: " .. err
+    ngx_log(ngx_ERR, "error while processing sample '", key, "': ", err)
+  elseif limit_exceeding then
+    local ok, forcible
+    ok, err, forcible = self.decision_cache:set(key, true, delay)
+    if not ok then
+      ngx_log(ngx_ERR, "error while caching a decision: ", err)
+    elseif forcible then
+      ngx_log(ngx_WARN, "removed previous one while caching a decision: ", err)
+    end
   end
-
-  return should_throttle, nil
 end
 
-function _M.process_fast(self, key)
-  if self.sliding_window:should_throttle(key) then
+function _M.process(self, key)
+  local limit_exceeding = (self.decision_cache:get(key) == true)
+  if limit_exceeding then
     return true
   end
 
-  -- this should be done only when using external store like memcached
-  -- this way we don't add latency to request
-  -- gotta be careful to not exhaust all timers here when nginx can not expire them timely
-  -- also if ngixn is already under load, these will not fire on time
-  -- which means the throttling decision will delay.
-  ngx.timer.at(0, function()
-	  self.sliding_window:add_sample_and_estimate_total_count(key)
-  end)
-  
+  if self.process_async then
+    local ok, err = ngx_timer_at(0, process, self, key)
+    if not ok then
+      ngx_log(ngx_ERR, "error while creating a timer: ", err)
+    end
+  else
+    process(self, key)
+  end
+
   return false
 end
 
