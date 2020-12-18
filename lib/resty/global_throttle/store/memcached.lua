@@ -75,7 +75,7 @@ function _M.get(self, key)
       return nil, err
     end
     if value == nil and flags == nil and err == nil then
-      return nil, "not found"
+      return nil, nil
     end
     return value, nil
   end)
