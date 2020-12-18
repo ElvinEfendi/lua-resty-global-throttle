@@ -12,6 +12,7 @@ do
   local GLOBALS_ALLOWED_IN_TEST = {
     _TEST = true,
     ngx_time_travel = true,
+    ngx_freeze_time = true,
   }
   local newindex = function(table, key, value)
     rawset(table, key, value)
@@ -36,11 +37,16 @@ end
 
 do
   -- following mocking let's us travel in time
+  -- and freeze time
 
   local time_travel = 0
+  local frozen_time
 
   local ngx_now = ngx.now
   _G.ngx.now = function()
+    if frozen_time then
+      return frozen_time + time_travel
+    end
     return ngx_now() + time_travel
   end
 
@@ -49,6 +55,12 @@ do
     time_travel = offset
     f()
     time_travel = 0
+  end
+
+  _G.ngx_freeze_time = function(time, f)
+    frozen_time = time
+    f()
+    frozen_time = nil
   end
 end
 

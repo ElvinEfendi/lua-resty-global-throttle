@@ -108,20 +108,30 @@ describe("global_throttle", function()
         end
       end)
 
-      it("does not allow spike in subsequent windows", function()
+      it("does not allow spike in the subsequent window", function()
         local exceeding_limit, err
-        for i=1,10,1 do
-          exceeding_limit, err = my_throttle:process("client1")
-          assert.is_nil(err)
-          assert.is_false(exceeding_limit)
-        end
-
-        -- make sure we go to next window
-        ngx_time_travel(2.1, function()
+        local frozen_ngx_now = 1608261277.678
+        -- Since we configured out throttler with the window size of 2 seconds,
+        -- freezing time below means all requests in this loop happens in the
+        -- window starting at 1608261276.000 and 1.678s have elapsed in that
+        -- window so far.
+        ngx_freeze_time(frozen_ngx_now, function()
           for i=1,10,1 do
             exceeding_limit, err = my_throttle:process("client1")
             assert.is_nil(err)
+            assert.is_false(exceeding_limit)
           end
+          assert.are.equals(frozen_ngx_now, ngx.now())
+
+          -- make sure we go to next window
+          -- stating at 1608261276.000 + 2 = 21608261278.000
+          ngx_time_travel(2, function()
+            for i=1,10,1 do
+              exceeding_limit, err = my_throttle:process("client1")
+              assert.is_nil(err)
+            end
+            assert.are.equals(frozen_ngx_now + 2, ngx.now())
+          end)
         end)
         assert.is_true(exceeding_limit)
       end)
@@ -151,8 +161,11 @@ describe("global_throttle", function()
 
       before_each(function()
         local err
-        my_throttle, err = global_throttle.new(10, 2,
-          { provider = "memcached", host = os.getenv("MEMCACHED_HOST"), port = "11211" } )
+        my_throttle, err = global_throttle.new(10, 2, {
+          provider = "memcached",
+          host = os.getenv("MEMCACHED_HOST"),
+          port = os.getenv("MEMCACHED_PORT"),
+        })
         assert.is_nil(err)
       end)
 
