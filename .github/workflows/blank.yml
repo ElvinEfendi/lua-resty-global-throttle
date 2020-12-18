@@ -1,0 +1,16 @@
+name: CI
+
+on: push
+
+jobs:
+  spec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        
+      - name: Build and start necessary containers
+        run: docker-compose up -d
+
+      - name: Spec
+        run: |
+          scripts/spec
