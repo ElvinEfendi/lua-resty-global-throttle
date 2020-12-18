@@ -65,10 +65,31 @@ function _M.process_sample(self, sample)
   local estimated_total_count =
     last_rate * (self.window_size - elapsed_time) + count
 
+  --[[
+  print(
+    "estimated_total_count: ", estimated_total_count,
+    ", last_rate: ", last_rate,
+    ", limit: ", self.limit
+  )
+  --]]
+
   -- if last_rate is 0, then we allow burst of limit in the current window
-	if estimated_total_count >= self.limit and last_rate > 0  then
-		local delay_ms =
-      self.window_size - (self.limit - count) / last_rate - elapsed_time
+	if estimated_total_count >= self.limit then
+    -- when limit is hit and last_rate is 0, then we have to throttle until the next window
+		local delay_ms
+    if last_rate == 0 then
+      delay_ms = self.window_size - elapsed_time
+    elseif last_rate > 0 then
+      delay_ms =
+        self.window_size - (self.limit - count) / last_rate - elapsed_time
+    else
+      -- TODO: can this happen?
+    end
+    if not delay_ms then
+      error("XIYAR")
+    end
+    -- TODO: should we guard against delay_ms == 0, which would mean indefinite throttle
+    -- something like forcing delay_ms to be at max self.window_size
     return true, delay_ms / 1000, nil
 	end
 
