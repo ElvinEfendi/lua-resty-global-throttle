@@ -1,0 +1,30 @@
+version: "3.8"
+services:
+  proxy:
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    volumes:
+      - ./lib:/usr/local/openresty/site/lualib
+      - ./spec:/spec
+      - ./scripts:/scripts
+      - ./dev/nginx.conf:/etc/openresty/nginx.conf
+    networks:
+      - lua_resty_global_throttle
+    expose:
+      - "8080"
+    ports:
+      - "8080:8080"
+    environment:
+      - MEMCACHED_HOST=memcached
+      - MEMCACHED_PORT=11211
+  memcached:
+    image: bitnami/memcached:latest
+    networks:
+      - lua_resty_global_throttle
+    expose:
+      - "11211"
+    ports:
+      - "11211:11211"
+networks:
+  lua_resty_global_throttle: {}

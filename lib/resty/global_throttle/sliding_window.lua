@@ -8,10 +8,6 @@ local mt = { __index = _M }
 
 local DEFAULT_WINDOW_SIZE = 60 * 1000 -- milliseconds
 
-local function window_started_at(self, now_ms)
-  return now_ms -  (now_ms % self.window_size)
-end
-
 -- uniquely identifies the window associated with given time
 local function get_id(self, time)
   return tostring(math_floor(time / self.window_size))
@@ -49,24 +45,37 @@ function _M.new(store, window_size)
   }, mt), nil
 end
 
--- NOTE(elvinefendi): maybe also export add_sample and estimate_rate separately as well in addition
--- because some consumers might not wanna need estimated rate after adding a new sample, so they
--- can avoid store:get call when they just add a new sample
-function _M.add_sample_and_estimate_total_count(self, sample)
+function _M.add_sample(self, sample)
   local now_ms = ngx_now() * 1000
 
   local counter_key = get_counter_key(self, sample, now_ms)
 
   local expiry = self.window_size * 2 / 1000 --seconds
 
-  local count, err = self.store:incr(counter_key, 1, expiry)
+  local _, err = self.store:incr(counter_key, 1, expiry)
+  if err then
+    return err
+  end
+
+  return nil
+end
+
+function _M.estimated_total_count(self, sample)
+  local now_ms = ngx_now() * 1000
+
+  local counter_key = get_counter_key(self, sample, now_ms)
+
+  local count, err = self.store:get(counter_key)
   if err then
     return nil, err
+  end
+  if not count then
+    count = 0
   end
 
   local last_count = last_sample_count(self, sample, now_ms)
   local last_rate = last_count / self.window_size
-  local elapsed_time = now_ms - window_started_at(self, now_ms)
+  local elapsed_time = now_ms % self.window_size
   local estimated_total_count = last_rate * (self.window_size - elapsed_time) + count
 
   return estimated_total_count, nil

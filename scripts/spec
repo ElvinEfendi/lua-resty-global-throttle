@@ -4,10 +4,6 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-source scripts/_memcached
-
-docker run -w /lua --rm -it -v ${PWD}:/lua -e MEMCACHED_HOST=$MEMCACHED_HOST test-cli \
-  resty \
-    -I /lua/lib \
-    --shdict "my_global_throttle 1M" \
-    spec/run.lua -o gtest -v spec/**/
+resty \
+  --shdict "my_global_throttle 1M" \
+  spec/run.lua -o gtest --shuffle -v spec/**/ "$@"
