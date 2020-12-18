@@ -2,6 +2,7 @@ local tostring = tostring
 local string_format = string.format
 local math_floor = math.floor
 local ngx_now = ngx.now
+local setmetatable = setmetatable
 
 local _M = {}
 local mt = { __index = _M }
@@ -41,52 +42,12 @@ function _M.new(store, limit, window_size)
 
   return setmetatable({
     store = store,
-		limit = limit, -- TODO: what if this is not given?
+		limit = limit,
     window_size = window_size or DEFAULT_WINDOW_SIZE, -- milliseconds
-		throttled_keys = ngx.shared.throttled_keys, -- TODO: make this better
   }, mt), nil
 end
 
-function _M.add_sample(self, sample)
-  local now_ms = ngx_now() * 1000
-
-  local counter_key = get_counter_key(self, sample, now_ms)
-
-  local expiry = self.window_size * 2 / 1000 --seconds
-
-  local _, err = self.store:incr(counter_key, 1, expiry)
-  if err then
-    return err
-  end
-
-  return nil
-end
-
-function _M.estimated_total_count(self, sample)
-  local now_ms = ngx_now() * 1000
-
-  local counter_key = get_counter_key(self, sample, now_ms)
-
-  local count, err = self.store:get(counter_key)
-  if err then
-    return nil, err
-  end
-  if not count then
-    count = 0
-  end
-
-  local last_count = last_sample_count(self, sample, now_ms)
-  local last_rate = last_count / self.window_size
-  local elapsed_time = now_ms % self.window_size
-  local estimated_total_count = last_rate * (self.window_size - elapsed_time) + count
-
-	local delay = self.window_size - (self.limit - count) / last_rate - elapsed_time
-	print("delay: ", delay, ", throttled: ", estimated_total_count >= self.limit)
-
-  return estimated_total_count, nil
-end
-
-function _M.add_sample_and_estimate_total_count(self, sample)
+function _M.process_sample(self, sample)
   local now_ms = ngx_now() * 1000
 
   local counter_key = get_counter_key(self, sample, now_ms)
@@ -95,28 +56,23 @@ function _M.add_sample_and_estimate_total_count(self, sample)
 
   local count, err = self.store:incr(counter_key, 1, expiry)
   if err then
-    return nil, err
+    return nil, nil, err
   end
 
   local last_count = last_sample_count(self, sample, now_ms)
   local last_rate = last_count / self.window_size
   local elapsed_time = now_ms % self.window_size
-  local estimated_total_count = last_rate * (self.window_size - elapsed_time) + count
-
-  print("estimated_total_count: ", estimated_total_count, ", limit: ", self.limit, ", last_rate: ", last_rate)
+  local estimated_total_count =
+    last_rate * (self.window_size - elapsed_time) + count
 
   -- if last_rate is 0, then we allow burst of limit in the current window
-	if estimated_total_count >= self.limit and last_rate > 0 and not self:should_throttle(sample) then
-		local delay_ms = self.window_size - (self.limit - count) / last_rate - elapsed_time
-    print("throttling for ", delay_ms)
-		self.throttled_keys:set(sample, true, delay_ms / 1000)
+	if estimated_total_count >= self.limit and last_rate > 0  then
+		local delay_ms =
+      self.window_size - (self.limit - count) / last_rate - elapsed_time
+    return true, delay_ms / 1000, nil
 	end
 
-  return estimated_total_count, nil
-end
-
-function _M.should_throttle(self, sample)
-  return self.throttled_keys:get(sample) == true
+  return false, nil, nil
 end
 
 return _M

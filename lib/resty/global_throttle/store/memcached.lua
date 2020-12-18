@@ -3,9 +3,10 @@ local memcached = require "resty.memcached"
 local string_format = string.format
 local ngx_log = ngx.log
 local ngx_ERR = ngx.ERR
+local setmetatable = setmetatable
 
 local _M = {}
-local mt = { __index = _M }
+local mt = { __index = _M, is_remote = true }
 
 function _M.new(options)
   return setmetatable({
