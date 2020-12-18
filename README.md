@@ -1,6 +1,6 @@
 # lua-resty-global-throttle
 
-[![Build Status](https://github.com/ElvinEfendi/lua-resty-global-throttle/workflows/CI/badge.svg?branch=master)](https://github.com/ElvinEfendi/lua-resty-global-throttle/actions?query=workflow%3ACI)
+[![Build Status](https://github.com/ElvinEfendi/lua-resty-global-throttle/workflows/CI/badge.svg?branch=main)](https://github.com/ElvinEfendi/lua-resty-global-throttle/actions?query=workflow%3ACI)
 
 ### Installation
 
