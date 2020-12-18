@@ -38,14 +38,14 @@ function _M.process(self, key)
     return nil, err
   end
 
-  local should_throttle = estimated_total_count > self.limit
+  local should_throttle = estimated_total_count >= self.limit
   if should_throttle then
     -- we don't count throttled samples
     return true, nil
   end
 
   err = self.sliding_window:add_sample(key)
-  return nil, err
+  return should_throttle, err
 end
 
 return _M
