@@ -6,4 +6,5 @@ set -o pipefail
 
 resty \
   --shdict "my_global_throttle 1M" \
+  --shdict "decision_cache 1M" \
   spec/run.lua -o gtest --shuffle -v spec/**/ "$@"
