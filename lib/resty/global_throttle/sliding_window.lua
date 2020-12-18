@@ -8,10 +8,6 @@ local mt = { __index = _M }
 
 local DEFAULT_WINDOW_SIZE = 60 * 1000 -- milliseconds
 
-local function window_started_at(self, now_ms)
-  return now_ms -  (now_ms % self.window_size)
-end
-
 -- uniquely identifies the window associated with given time
 local function get_id(self, time)
   return tostring(math_floor(time / self.window_size))
@@ -79,7 +75,7 @@ function _M.estimated_total_count(self, sample)
 
   local last_count = last_sample_count(self, sample, now_ms)
   local last_rate = last_count / self.window_size
-  local elapsed_time = now_ms - window_started_at(self, now_ms)
+  local elapsed_time = now_ms % self.window_size
   local estimated_total_count = last_rate * (self.window_size - elapsed_time) + count
 
   return estimated_total_count, nil
