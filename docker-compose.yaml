@@ -6,9 +6,8 @@ services:
       dockerfile: ./Dockerfile
     volumes:
       - ./lib:/usr/local/openresty/site/lualib
-      - ./spec:/spec
-      - ./scripts:/scripts
       - ./dev/nginx.conf:/etc/openresty/nginx.conf
+      - ./:/app
     networks:
       - lua_resty_global_throttle
     expose:
