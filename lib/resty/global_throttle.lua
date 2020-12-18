@@ -19,7 +19,7 @@ function _M.new(limit, window_size_in_seconds, store_options)
 
   local window_size = window_size_in_seconds * 1000
   local sw
-  sw, err = sliding_window_new(store, window_size)
+  sw, err = sliding_window_new(store, limit, window_size)
   if not sw then
     return nil, "error while creating sliding window instance: " .. err
   end
@@ -50,6 +50,23 @@ function _M.process(self, key)
   end
 
   return should_throttle, nil
+end
+
+function _M.process_fast(self, key)
+  if self.sliding_window:should_throttle(key) then
+    return true
+  end
+
+  -- this should be done only when using external store like memcached
+  -- this way we don't add latency to request
+  -- gotta be careful to not exhaust all timers here when nginx can not expire them timely
+  -- also if ngixn is already under load, these will not fire on time
+  -- which means the throttling decision will delay.
+  ngx.timer.at(0, function()
+	  self.sliding_window:add_sample_and_estimate_total_count(key)
+  end)
+  
+  return false
 end
 
 return _M
