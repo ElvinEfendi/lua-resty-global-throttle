@@ -3,6 +3,7 @@ local memcached = require "resty.memcached"
 local string_format = string.format
 local ngx_log = ngx.log
 local ngx_ERR = ngx.ERR
+local setmetatable = setmetatable
 
 local _M = {}
 local mt = { __index = _M }
@@ -58,10 +59,17 @@ function _M.incr(self, key, delta, expiry)
 
       local ok
       ok, err = memc:add(key, delta, expiry)
-      if not ok then
+      if ok then
+        new_value = delta
+      elseif err == "NOT_STORED" then
+        -- possibly the other worker added the key, so attempting to incr again
+        new_value, err = memc:incr(key, delta)
+        if err then
+          return nil, err
+        end
+      else
         return nil, err
       end
-      new_value = delta
     end
 
     return new_value, nil

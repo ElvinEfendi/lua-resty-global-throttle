@@ -1,6 +1,8 @@
-local string_format = string.format
+local ngx = ngx
 local ngx_log = ngx.log
 local ngx_WARN = ngx.WARN
+local string_format = string.format
+local setmetatable = setmetatable
 
 local _M = {}
 local mt = { __index = _M }
@@ -12,7 +14,9 @@ function _M.new(options)
 
   local dict = ngx.shared[options.name]
   if not dict then
-    return nil, string_format("shared dictionary with name \"%s\" is not configured", options.name)
+    return nil,
+      string_format("shared dictionary with name \"%s\" is not configured",
+        options.name)
   end
 
   return setmetatable({
@@ -27,7 +31,8 @@ function _M.incr(self, key, delta, expiry)
   end
 
   if forcible then
-    ngx_log(ngx_WARN, "shared dictionary is full, removed valid key(s) to store the new one")
+    ngx_log(ngx_WARN,
+      "shared dictionary is full, removed valid key(s) to store the new one")
   end
 
   return new_value, nil

@@ -2,6 +2,7 @@ local tostring = tostring
 local string_format = string.format
 local math_floor = math.floor
 local ngx_now = ngx.now
+local setmetatable = setmetatable
 
 local _M = {}
 local mt = { __index = _M }
