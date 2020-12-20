@@ -1,21 +1,17 @@
-.PHONY: image dev dev-pre dev-run
-image:
-	docker build -t test-cli .
+.PHONY: misc dev-up dev-down check spec
 
-dev:
-	docker build -t throttle-dev -f dev/Dockerfile .
-dev-pre:
+misc:
 	brew install hey
-dev-run:
-	docker run --rm -p 8080:8080 -v ${PWD}/lib:/usr/local/openresty/site/lualib -v ${PWD}/dev/nginx.conf:/etc/openresty/nginx.conf throttle-dev
+dev-up:
+	docker-compose up -d
+dev-down:
+	docker-compose down
+reload-proxy:
+	docker-compose exec proxy openresty -s reload
 
-.PHONY: check
 check:
-	scripts/check
-.PHONY: test
-test:
-	scripts/test
+	docker-compose exec -T -w /app proxy scripts/check
 
-.PHONY: spec
+# use --filter PATTERN flag to focus on matching tests only
 spec:
-	scripts/spec
+	docker-compose exec -T -w /app proxy scripts/spec
