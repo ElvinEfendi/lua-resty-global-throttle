@@ -9,8 +9,8 @@ jobs:
       - uses: actions/checkout@v2
         
       - name: Build and start necessary containers
-        run: docker-compose up -d
+        run: make dev-up
 
       - name: Spec
         run: |
-          docker-compose exec -T proxy /scripts/spec
+          make spec
