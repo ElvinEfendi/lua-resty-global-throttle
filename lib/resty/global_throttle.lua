@@ -19,7 +19,7 @@ function _M.new(limit, window_size_in_seconds, store_options)
 
   local window_size = window_size_in_seconds * 1000
   local sw
-  sw, err = sliding_window_new(store, window_size)
+  sw, err = sliding_window_new(store, limit, window_size)
   if not sw then
     return nil, "error while creating sliding window instance: " .. err
   end
@@ -32,24 +32,22 @@ function _M.new(limit, window_size_in_seconds, store_options)
 end
 
 function _M.process(self, key)
-  local estimated_total_count, err =
-    self.sliding_window:estimated_total_count(key)
-  if not estimated_total_count then
-    return nil, "estimated_total_count failed with: " .. err
+  local limit_exceeding, _, err =
+    self.sliding_window:is_limit_exceeding(key)
+  if err then
+    return nil, "failed to check if limit is exceeding: " .. err
   end
 
-  local should_throttle = estimated_total_count >= self.limit
-  if should_throttle then
-    -- we don't count throttled samples
+  if limit_exceeding then
     return true, nil
   end
 
   err = self.sliding_window:add_sample(key)
   if err then
-    return should_throttle, "add_sample failed with: " .. err
+    return false, "failed to process sample: " .. err
   end
 
-  return should_throttle, nil
+  return false, nil
 end
 
 return _M
