@@ -1,51 +1,14 @@
-local memcached_host = os.getenv("MEMCACHED_HOST")
-local memcached_port = os.getenv("MEMCACHED_PORT")
-
 local memcached_store = require("resty.global_throttle.store.memcached")
 
-local function with_memc(command)
-  local memcached = require "resty.memcached"
-
-  local memc, err = memcached:new()
-  local ok, err = memc:connect(memcached_host, memcached_port)
-  assert.is_nil(err)
-  assert.are.same(1, ok)
-
-  local ret1, ret2, ret3 = command(memc)
-
-  memc:close()
-
-  return ret1, ret2, ret3
-end
-
-local function flush_memcached_data()
-  with_memc(function(memc)
-    return memc:flush_all()
-  end)
-end
-
-local function assert_in_memcached(expected_key, expected_value)
-  local value, flags, err = with_memc(function(memc)
-    return memc:get(expected_key)
-  end)
-  assert.is_nil(err)
-  if expected_value == nil then
-    assert.are.same(nil, flags)
-    assert.is_nil(value)
-  else
-    assert.are.same('0', flags)
-    assert.is_not_nil(value)
-    assert.are.same(expected_value, tonumber(value))
-  end
-end
-
 local function incr_and_assert(store, key, delta, expected_value, expiry)
-  local value, err = store:incr(key, delta, expiry)
+  local new_value, err = store:incr(key, delta, expiry)
 
   assert.is_nil(err)
-  assert.are.same(expected_value, value)
+  assert.are.same(expected_value, new_value)
 
-  assert_in_memcached(key, expected_value)
+  local actual_value, flags, err = memcached.get(key)
+  assert.are.same('0', flags)
+  assert.are.same(expected_value, tonumber(actual_value))
 end
 
 describe("memcached", function()
@@ -72,10 +35,10 @@ describe("memcached", function()
   describe("incr and get", function()
     local store
     before_each(function()
-      flush_memcached_data()
+      memcached.flush_all()
 
       local err
-      store, err = memcached_store.new({ host = memcached_host, port = memcached_port })
+      store, err = memcached_store.new({ host = memcached.host, port = memcached.port })
       assert.is_nil(err)
     end)
 
@@ -91,7 +54,10 @@ describe("memcached", function()
     it("sets correct expiry", function()
       incr_and_assert(store, "client3", 1, 1, 1)
       ngx.sleep(1)
-      assert_in_memcached("client3", nil)
+      local value, flags, err = memcached.get("client3")
+      assert.is_nil(value)
+      assert.is_nil(flags)
+      assert.is_nil(err)
     end)
 
     it("returns value for existing key", function()

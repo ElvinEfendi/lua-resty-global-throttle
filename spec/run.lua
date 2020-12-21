@@ -13,6 +13,7 @@ do
     _TEST = true,
     ngx_time_travel = true,
     ngx_freeze_time = true,
+    memcached = true,
   }
   local newindex = function(table, key, value)
     rawset(table, key, value)
@@ -62,6 +63,39 @@ do
     f()
     frozen_time = nil
   end
+
+  local memcached_host = os.getenv("MEMCACHED_HOST")
+  local memcached_port = os.getenv("MEMCACHED_PORT")
+  local with_memcached_client = function(command)
+    local rm = require("resty.memcached")
+    local memc, err = rm:new()
+    local ok, err = memc:connect(memcached_host, memcached_port)
+    if err then
+      assert(err, "failed to connect to memcached: " .. err)
+    end
+
+    local ret1, ret2, ret3 = command(memc)
+
+    memc:close()
+
+    return ret1, ret2, ret3
+  end
+
+  _G.memcached = {
+    host = memcached_host,
+    port = memcached_port,
+    with_client = with_memcached_client,
+    flush_all = function()
+      return with_memcached_client(function(memc)
+        return memc:flush_all()
+      end)
+    end,
+    get = function(key)
+      return with_memcached_client(function(memc)
+        return memc:get(key)
+      end)
+    end,
+  }
 end
 
 busted_runner({ standalone = false })
