@@ -35,101 +35,16 @@ local function get_last_rate(self, sample, now_ms)
   return last_count / self.window_size
 end
 
-function _M.new(store, limit, window_size)
-  if not store then
-    return nil, "'store' parameter is missing"
-  end
-  if not store.incr then
-    return nil, "'store' has to implement 'incr' function"
-  end
-  if not store.get then
-    return nil, "'store' has to implement 'get' function"
-  end
-
-  return setmetatable({
-    store = store,
-    limit = limit,
-    window_size = window_size or DEFAULT_WINDOW_SIZE, -- milliseconds
-  }, mt), nil
-end
-
-function _M.add_sample(self, sample)
-  local now_ms = ngx_now() * 1000
-
-  local counter_key = get_counter_key(self, sample, now_ms)
-
-  local expiry = self.window_size * 2 / 1000 --seconds
-
-  local _, err = self.store:incr(counter_key, 1, expiry)
-  if err then
-    return err
-  end
-
-  return nil
-end
-
-function _M.is_limit_exceeding(self, sample)
-  local now_ms = ngx_now() * 1000
-
-  local counter_key = get_counter_key(self, sample, now_ms)
-
-  local count, err = self.store:get(counter_key)
-  if err then
-    return nil, nil, err
-  end
-  if not count then
-    count = 0
-  end
-
-  local last_rate = get_last_rate(self, sample, now_ms)
+local function get_remaining_time(self, now_ms)
   local elapsed_time = now_ms % self.window_size
-  local estimated_total_count =
-    last_rate * (self.window_size - elapsed_time) + count
-
-  local limit_exceeding = estimated_total_count >= self.limit
-  local delay_ms = nil
-
-  if limit_exceeding then
-    if last_rate == 0 then
-      -- When the last rate is 0, and limit is exceeding that means the limit
-      -- in the current window is precisely met (without estimation,
-      -- refer to the above formula). Which means we have to wait until the
-      -- next window to allow more samples.
-      delay_ms = self.window_size - elapsed_time
-    else
-      -- The following formula is obtained by solving the following equation
-      -- for `delay_ms`:
-      -- last_rate * (self.window_size - (elapsed_time + delay_ms)) + count =
-      --   self.limit - 1
-      -- This equation is comparable to total count estimation for the current
-      -- window formula above. Basically the idea is, how long more (delay_ms)
-      -- should we wait before estimated total count is below the limit again.
-      delay_ms =
-        self.window_size - (self.limit - count) / last_rate - elapsed_time
-    end
-
-    --[[
-    -- 2020/12/21 16:01:06 [error] 55#55: *2063 [lua] app.lua:37: rewrite_memc(): error while processing key: failed to check if limit is exceeding: wrong value for delay_ms: 2264.0909090909, client: 172.30.0.1, server: localhost, request: "GET /memc?key=m1 HTTP/1.1", host: "localhost:8080"
-    --]]
-    -- Unless weird time drifts happen or counter is borked,
-    -- this should never be true.
-    if delay_ms > self.window_size or delay_ms < 0 then
-      local msg = string_format("wrong value for delay_ms: %s. \z
-        window_size: %s, limit: %s, count: %s, last_rate: %s, \z
-        elapsed_time: %s",
-        delay_ms, self.window_size, self.limit, count, last_rate, elapsed_time)
-      return limit_exceeding, nil, msg
-    end
-  end
-
-  return limit_exceeding, delay_ms, nil
+  return self.window_size - elapsed_time
 end
 
 local function is_limit_exceeding(self, sample, now_ms, count, sample_processed) 
   local last_rate = get_last_rate(self, sample, now_ms)
   local elapsed_time = now_ms % self.window_size
   local estimated_total_count =
-    math.floor(last_rate * (self.window_size - elapsed_time)) + count
+    last_rate * (self.window_size - elapsed_time) + count
 
   local limit_exceeding
   if sample_processed then
@@ -187,17 +102,54 @@ local function is_limit_exceeding(self, sample, now_ms, count, sample_processed)
   return limit_exceeding, delay_ms, nil
 end
 
+local function add_sample(self, sample, counter_key)
+  local expiry = self.window_size * 2 / 1000 --seconds
+  local new_count, err = self.store:incr(counter_key, 1, expiry)
+  if err then
+    return nil, err
+  end
+  return new_count, nil
+end
+
+local function get_count(self, counter_key)
+  local count, err = self.store:get(counter_key)
+  if err then
+    return nil, err
+  end
+  if not count then
+    count = 0
+  end
+  return count, nil
+end
+
+function _M.add_sample(self, sample)
+  local now_ms = ngx_now() * 1000
+  local counter_key = get_counter_key(self, sample, now_ms)
+  return add_sample(self, sample, counter_key)
+end
+
+function _M.is_limit_exceeding(self, sample)
+  local now_ms = ngx_now() * 1000
+
+  local counter_key = get_counter_key(self, sample, now_ms)
+  local count, err = get_count(self, counter_key)
+  if err then
+    return nil, nil, err
+  end
+
+  return is_limit_exceeding(self, sample, now_ms, count, false)
+end
+
+-- process_sample combines add_sample and is_limit_exceeding
+-- and also does limit check after processing the sample.
 function _M.process_sample(self, sample)
   -- TODO: do you really need to freeze now_ms like this?
   local now_ms = ngx_now() * 1000
 
   local counter_key = get_counter_key(self, sample, now_ms)
-  local count, err = self.store:get(counter_key)
+  local count, err = get_count(self, counter_key)
   if err then
     return nil, nil, err
-  end
-  if not count then
-    count = 0
   end
 
   local limit_exceeding, delay_ms, err =
@@ -206,20 +158,17 @@ function _M.process_sample(self, sample)
     return nil, nil, err
   end
   if limit_exceeding then
-    print("limit_exceeding = ", limit_exceeding)
     return true, delay_ms, nil
   end
 
   -- Limit is not exceeding, so process the sample.
-  local expiry = self.window_size * 2 / 1000 --seconds
-  local new_count, err = self.store:incr(counter_key, 1, expiry)
-  print("new_count = ", new_count)
+  local new_count, err = add_sample(self, sample. counter_key)
   if err then
     return false, nil, err
   end
 
   -- Since this is a distributed throttler, there's a inherent race.
-  -- Every instance is trying trying to increment the counter, so it is
+  -- Every instance is trying to increment the counter, so it is
   -- possible that when we calculate limit above, it is not exceeding yet.
   -- But by the time we process the sample by incrementing its counter,
   -- other throttle instances might have incremented the same counter large
@@ -229,7 +178,29 @@ function _M.process_sample(self, sample)
   -- In other words, there are two scenarios where limit can be exceeded:
   -- 1. before processing a given sample
   -- 2. after processing a given sample
-  return is_limit_exceeding(self, sample, now_ms, new_count, true)
+  --return is_limit_exceeding(self, sample, now_ms, new_count, true)
+  if new_count > self.limit then
+    return true, get_remaining_time(self, now_ms), nil
+  end
+  return false, nil, nil
+end
+
+function _M.new(store, limit, window_size)
+  if not store then
+    return nil, "'store' parameter is missing"
+  end
+  if not store.incr then
+    return nil, "'store' has to implement 'incr' function"
+  end
+  if not store.get then
+    return nil, "'store' has to implement 'get' function"
+  end
+
+  return setmetatable({
+    store = store,
+    limit = limit,
+    window_size = window_size or DEFAULT_WINDOW_SIZE, -- milliseconds
+  }, mt), nil
 end
 
 return _M
