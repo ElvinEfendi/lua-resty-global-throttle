@@ -31,23 +31,29 @@ function _M.new(limit, window_size_in_seconds, store_options)
   }, mt), nil
 end
 
+--[[
 function _M.process(self, key)
-  local limit_exceeding, _, err =
+  local limit_exceeding, delay_ms, err =
     self.sliding_window:is_limit_exceeding(key)
   if err then
-    return nil, "failed to check if limit is exceeding: " .. err
+    return nil, nil, "failed to check if limit is exceeding: " .. err
   end
 
   if limit_exceeding then
-    return true, nil
+    return true, delay_ms, nil
   end
 
   err = self.sliding_window:add_sample(key)
   if err then
-    return false, "failed to process sample: " .. err
+    return false, nil, "failed to process sample: " .. err
   end
 
-  return false, nil
+  return false, nil, nil
+end
+--]]
+
+function _M.process(self, key)
+  return self.sliding_window:process_sample(key)
 end
 
 return _M
