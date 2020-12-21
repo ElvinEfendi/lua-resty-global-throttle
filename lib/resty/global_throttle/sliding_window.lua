@@ -108,9 +108,9 @@ function _M.is_limit_exceeding(self, sample)
         self.window_size - (self.limit - count) / last_rate - elapsed_time
     end
 
-    -- Unless weird time drifts happen or counter is borked, this should never
-    -- happen.
-    if not (delay_ms <= self.window_size or delay_ms > 0) then
+    -- Unless weird time drifts happen or counter is borked,
+    -- this should never be true.
+    if delay_ms > self.window_size or delay_ms < 0 then
       return limit_exceeding, nil, "wrong value for delay_ms: " .. delay_ms
     end
   end
