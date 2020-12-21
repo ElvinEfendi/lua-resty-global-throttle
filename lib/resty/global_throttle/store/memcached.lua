@@ -9,6 +9,10 @@ local _M = {}
 local mt = { __index = _M }
 
 function _M.new(options)
+  if not options.host or not options.port then
+    return nil, "'host' and 'port' options are required"
+  end
+
   return setmetatable({
     options = options,
   }, mt), nil
@@ -72,7 +76,7 @@ function _M.incr(self, key, delta, expiry)
       end
     end
 
-    return new_value, nil
+    return tonumber(new_value), nil
   end)
 end
 
@@ -85,7 +89,7 @@ function _M.get(self, key)
     if value == nil and flags == nil and err == nil then
       return nil, nil
     end
-    return value, nil
+    return tonumber(value), nil
   end)
 end
 
