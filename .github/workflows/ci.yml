@@ -11,6 +11,9 @@ jobs:
       - name: Build and start necessary containers
         run: make dev-up
 
+      - name: Lint
+        run: make check
+
       - name: Spec
         run: |
           make spec

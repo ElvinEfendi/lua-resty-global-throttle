@@ -67,10 +67,6 @@ function _M.new(store, limit, window_size)
   }, mt), nil
 end
 
-local function estimate_final_count(self, remaining_time, last_rate, count)
-  return last_rate * remaining_time + count
-end
-
 local function get_desired_delay(self, remaining_time, last_rate, count)
   if last_rate == 0 then
     return remaining_time
@@ -84,7 +80,7 @@ local function get_desired_delay(self, remaining_time, last_rate, count)
   end
 
   if desired_delay < 0 or desired_delay > self.window_size then
-    ngx_log(ngx_ERR, "unexpected value for delay: ", delay,
+    ngx_log(ngx_ERR, "unexpected value for delay: ", desired_delay,
       ", when remaining_time = ", remaining_time,
       " last_rate = ", last_rate,
       " count = ", count,
@@ -139,16 +135,13 @@ function _M.process_sample(self, sample)
     return count, remaining_time, nil
   end
 
-  local last_rate, err = get_last_rate(self, sample, now)
+  local last_rate
+  last_rate, err = get_last_rate(self, sample, now)
   if err then
     return nil, nil, err
   end
 
-  local estimated_final_count, err =
-    estimate_final_count(self, remaining_time, last_rate, count)
-  if err then
-    return nil, nil, err
-  end
+  local estimated_final_count = last_rate * remaining_time + count
   if estimated_final_count >= self.limit then
     local desired_delay =
       get_desired_delay(self, remaining_time, last_rate, count)
@@ -156,7 +149,8 @@ function _M.process_sample(self, sample)
   end
 
   local expiry = self.window_size * 2
-  local new_count, err = self.store:incr(counter_key, 1, expiry)
+  local new_count
+  new_count, err = self.store:incr(counter_key, 1, expiry)
   if err then
     return nil, nil, err
   end
