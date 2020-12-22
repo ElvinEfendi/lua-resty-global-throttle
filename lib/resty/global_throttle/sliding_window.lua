@@ -118,4 +118,14 @@ function _M.is_limit_exceeding(self, sample)
   return limit_exceeding, delay_ms, nil
 end
 
+function _M.process_sample(self, sample)
+  local now_ms = ngx_now() * 1000
+
+  local counter_key = get_counter_key(self, sample, now_ms)
+
+  local expiry = self.window_size * 2 / 1000 --seconds
+
+  return self.store:incr(counter_key, 1, expiry)
+end
+
 return _M
