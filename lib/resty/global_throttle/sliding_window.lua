@@ -118,6 +118,29 @@ function _M.is_limit_exceeding(self, sample)
   return limit_exceeding, delay_ms, nil
 end
 
+-- process_sample first checks if limit exceeding for the given sample.
+-- If so then, it calculates for how long this sample
+-- should be delayed/rejected and returns estimated total count for
+-- the current window for this sample along with suggested delay time to bring
+-- the rate down below the limit.
+-- If limit is not exceeding yet, it increments the counter corresponding
+-- to the sample in the current window. Finally it checks if the limit is
+-- exceeding again. This check is necessary because between the first check and
+-- increment another sliding window instances might have processed enough
+-- occurences of this sample to exceed the limit. Therefore if this check shows
+-- that the limit is exceeding then we again calculate necessary delay.
+--
+-- Return values: estimated_count, delay, err
+-- `estimated_count` - this is what the algorithm expects number of occurences
+-- will be for the sample by the end of current window. It is calculated based
+-- on the rate from previous window and extrapolated to the current window.
+-- If estimated_count is bigger than the configured limit, then the function
+-- will also return delay > 0 to suggest that the sample has to be throttled.
+-- `delay`           - this is either strictly bigger than 0 in case limit is
+-- exceeding, or nil in case rate of occurences of the sample is under the
+-- limit. The unit is second.
+-- `err`             - in case there is a problem with processing the sample
+-- this will be a string explaining the problem. In all other cases it is nil.
 function _M.process_sample(self, sample)
   local now_ms = ngx_now() * 1000
 

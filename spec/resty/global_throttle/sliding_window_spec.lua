@@ -14,6 +14,10 @@ local function new_sliding_window(limit, window_size)
   return sw
 end
 
+local function get_counter_key(sample, ngx_now, window_size)
+  return string.format("%s.%s.counter", sample, tostring(math.floor(ngx_now * 1000 / window_size)))
+end
+
 describe("sliding_window", function()
   describe("new", function()
     it("requires 'store' argument", function()
@@ -40,30 +44,61 @@ describe("sliding_window", function()
       sw = new_sliding_window(5, 1000)
     end)
 
-    it("increments counter for the given sample independent of instances", function()
-      local window_size = 1000
-      local frozen_ngx_now = 1608261277.678
-      local sample = "client1"
-      local counter_key = string.format("%s.%s.counter", sample, tostring(math.floor(frozen_ngx_now * 1000 / window_size)))
+    it("correctly surfaces store errors")
 
-      ngx_freeze_time(frozen_ngx_now, function()
-        local new_count, err = sw:process_sample(sample)
-        assert.is_nil(err)
-        assert.are.same(1, new_count)
+    describe("when there's no previous window", function()
+      it("returns precise number of occurences of a sample", function()
+        local window_size = 1000
+        local frozen_ngx_now = 1608261277.678
+        local sample = "client1"
 
-        local new_sw = new_sliding_window(5, window_size)
-        new_count, err = sw:process_sample(sample)
-        assert.is_nil(err)
-        assert.are.same(2, new_count)
+        ngx_freeze_time(frozen_ngx_now, function()
+          local count, delay, err = sw:process_sample(sample)
+          assert.is_nil(err)
+          assert.is_nil(delay)
+          assert.are.same(1, count)
 
-        local actual_count, _, err = memcached.get(counter_key)
-        assert.is_nil(err)
-        assert.are.same(2, tonumber(actual_count))
+          count, delay, err = sw:process_sample(sample)
+          assert.is_nil(err)
+          assert.is_nil(delay)
+          assert.are.same(2, count)
+        end)
       end)
+
+      it("differentiates samples from one another")
+
+      it("calculates correct delay when the limit is exceeding", function()
+        local window_size = 1000
+        local frozen_ngx_now = 1608261277.678
+        local sample = "client1"
+        local remaining
+
+        ngx_freeze_time(frozen_ngx_now, function()
+          local count, delay, err
+          for i=1,5,1 do
+            count, delay, err = sw:process_sample(sample)
+            assert.is_nil(err)
+            assert.is_nil(delay)
+            assert.are.same(i, count)
+          end
+
+          local elapsed_time = 0.5
+          ngx_time_travel(elapsed_time, function()
+            count, delay, err = sw:process_sample(sample)
+            assert.is_nil(err)
+            assert.are.same(ngx.now() - elapsed_time, delay)
+            assert.are.same(5, count)
+          end)
+        end)
+      end)
+
+      it("detects exceeding limit in case other sliding window instances increments counter right before the current instance increments")
     end)
 
-    it("detects exceeding limit and calculates correct delay")
-    it("detects exceeding limit and calculates correct delay when there's a previous window counter")
-    it("detects exceeding limit even if the limit is exceeded only after current instance gets the counter value")
+    describe("when a window is over and a new one starts", function()
+      it("returns estimated number of occurences of a sample based on rate from previous window")
+      it("calculates correct delay when the limit is exceeding")
+      it("looks back to only immediate previous window")
+    end)
   end)
 end)
