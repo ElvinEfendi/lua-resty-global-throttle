@@ -55,10 +55,12 @@ end
 
 function _M.incr(self, key, delta, expiry)
   return with_client(self, function(memc)
+    local err_pattern =
+      string_format("%%s failed for key '%s', expiry '%s': %%s", key, expiry)
     local new_value, err = memc:incr(key, delta)
     if err then
       if err ~= "NOT_FOUND" then
-        return nil, err
+        return nil, string_format(err_pattern, "increment", err)
       end
 
       local ok
@@ -69,10 +71,10 @@ function _M.incr(self, key, delta, expiry)
         -- possibly the other worker added the key, so attempting to incr again
         new_value, err = memc:incr(key, delta)
         if err then
-          return nil, err
+          return nil, string_format(err_pattern, "increment", err)
         end
       else
-        return nil, err
+        return nil, string_format(err_pattern, "add", err)
       end
     end
 
