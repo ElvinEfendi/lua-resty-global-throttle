@@ -17,9 +17,8 @@ function _M.new(limit, window_size_in_seconds, store_options)
     return nil, string_format("error initiating the store: %s", err)
   end
 
-  local window_size = window_size_in_seconds * 1000
   local sw
-  sw, err = sliding_window_new(store, limit, window_size)
+  sw, err = sliding_window_new(store, limit, window_size_in_seconds)
   if not sw then
     return nil, "error while creating sliding window instance: " .. err
   end
@@ -27,27 +26,11 @@ function _M.new(limit, window_size_in_seconds, store_options)
   return setmetatable({
     sliding_window = sw,
     limit = limit,
-    window_size = window_size
   }, mt), nil
 end
 
 function _M.process(self, key)
-  local limit_exceeding, _, err =
-    self.sliding_window:is_limit_exceeding(key)
-  if err then
-    return nil, "failed to check if limit is exceeding: " .. err
-  end
-
-  if limit_exceeding then
-    return true, nil
-  end
-
-  err = self.sliding_window:add_sample(key)
-  if err then
-    return false, "failed to process sample: " .. err
-  end
-
-  return false, nil
+  return self.sliding_window:process_sample(key)
 end
 
 return _M
