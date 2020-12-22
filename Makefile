@@ -14,4 +14,4 @@ check:
 
 # use --filter PATTERN flag to focus on matching tests only
 spec:
-	docker-compose exec -T -w /app proxy scripts/spec
+	docker-compose exec -T -w /app proxy scripts/spec $(ARGS)
