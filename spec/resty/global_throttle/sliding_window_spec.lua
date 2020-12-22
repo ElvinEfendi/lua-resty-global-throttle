@@ -15,7 +15,7 @@ local function new_sliding_window(limit, window_size)
 end
 
 local function get_counter_key(sample, ngx_now, window_size)
-  return string.format("%s.%s.counter", sample, tostring(math.floor(ngx_now * 1000 / window_size)))
+  return string.format("%s.%s.counter", sample, tostring(math.floor(ngx_now / window_size)))
 end
 
 local function exhaust_limit_and_assert_without_previous_window(sw, sample, limit)
@@ -28,7 +28,9 @@ local function exhaust_limit_and_assert_without_previous_window(sw, sample, limi
 end
 
 local function assert_floats_are_equal(expected, actual)
-  assert.are.same(string.format("%.6f", expected), string.format("%.6f", actual))
+  local epsilon = 1e-6
+  local is_equal = math.abs(expected - actual) < epsilon
+  assert.is_true(is_equal, string.format("expected %s, got %s", expected, actual))
 end
 
 describe("sliding_window", function()
@@ -149,7 +151,7 @@ describe("sliding_window", function()
             -- so our estimated count for current window would be following
             local expected_estimated_count = 5 -- 0.8 * 5 + 1
             -- where 0.8 is (window_size - new_elapsed_time), i.e new remaining_time
-            assert.are.same(expected_estimated_count, estimated_count)
+            assert_floats_are_equal(expected_estimated_count, estimated_count)
 
             -- since limit is not exceeding, delay should be nil
             assert.is_nil(delay)
@@ -176,12 +178,12 @@ describe("sliding_window", function()
             -- so our estimated count for current window would be following
             local expected_estimated_count = 6 -- 0.8 * 5 + 2
             -- where 0.8 is (window_size - new_elapsed_time), i.e new remaining_time
-            assert.are.same(expected_estimated_count, estimated_count)
+            assert_floats_are_equal(expected_estimated_count, estimated_count)
 
             -- since limit is exceeding, we will also have the following delay
             local expected_delay = 0.8 - (5 - 2) / 5
             -- the formula above is obtained by solving (0.8 - elapsed_time) * 5 + 2 = 5
-            assert.are.same(expected_delay, delay)
+            assert_floats_are_equal(expected_delay, delay)
           end)
         end)
       end)
@@ -199,21 +201,21 @@ describe("sliding_window", function()
 
       it("is aware that as a result of racy behaviour counter value can be over the limit but we still did not allow more than limit occurences of sample", function()
         local ok, err = memcached.with_client(function(memc)
-          return memc:add(counter_key, limit + 1, window_size * 2)
+          return memc:add(counter_key, limit + 3, window_size * 2)
         end)
         assert.is_nil(err)
-        assert.is_true(ok)
+        assert.are.same(1, ok)
 
         -- the above counter key was for previous window, and now we move to next window
         ngx_freeze_time(frozen_ngx_now + remaining_time + 0.1, function()
           local estimated_count, delay, err = sw:process_sample(sample)
           assert.is_nil(err)
           -- the main point in the below expectation is that previous rate is
-          -- calculated as 5(correct counter value)/1 and not as 6(actual counter value)/1.
+          -- calculated as 5(correct counter value)/1 and not as 8(actual counter value: limit + 3)/1.
           local expected_estimated_count = 5 * 0.9 + 1
-          assert.are.same(1, estimated_count)
+          assert_floats_are_equal(expected_estimated_count, estimated_count)
           local expected_delay = 0.9 - (5 - 1) / 5
-          assert.are.same(expected_delay, delay)
+          assert_floats_are_equal(expected_delay, delay)
         end)
       end)
     end)
