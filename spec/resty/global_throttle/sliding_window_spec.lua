@@ -23,12 +23,14 @@ local function exhaust_limit_and_assert_without_previous_window(sw, sample, limi
     local estimated_count, delay, err = sw:process_sample(sample)
     assert.is_nil(err)
     assert.is_nil(delay)
-    assert.are.same(i, estimated_count)
+    assert.are.same(i-1, estimated_count)
   end
 end
 
 local function assert_floats_are_equal(expected, actual)
   local epsilon = 1e-6
+  assert.are.same("number", type(expected))
+  assert.are.same("number", type(actual))
   local is_equal = math.abs(expected - actual) < epsilon
   assert.is_true(is_equal, string.format("expected %s, got %s", expected, actual))
 end
@@ -76,12 +78,12 @@ describe("sliding_window", function()
           local estimated_count, delay, err = sw:process_sample(sample)
           assert.is_nil(err)
           assert.is_nil(delay)
-          assert.are.same(1, estimated_count)
+          assert.are.same(0, estimated_count)
 
           estimated_count, delay, err = sw:process_sample(sample)
           assert.is_nil(err)
           assert.is_nil(delay)
-          assert.are.same(2, estimated_count)
+          assert.are.same(1, estimated_count)
         end)
       end)
 
@@ -109,7 +111,7 @@ describe("sliding_window", function()
             local estimated_count, delay, err = sw:process_sample(sample)
             assert.is_nil(err)
             assert.is_nil(delay)
-            assert.are.same(i, estimated_count)
+            assert.are.same(i-1, estimated_count)
           end
 
           -- this way we simulate other sliding window
@@ -128,7 +130,7 @@ describe("sliding_window", function()
           local estimated_count, delay, err = sw:process_sample(sample)
           assert.is_nil(err)
           assert_floats_are_equal(remaining_time, delay)
-          assert.are.same(limit + 1, estimated_count)
+          assert.are.same(limit, estimated_count)
 
           -- unmock
           memcached_store.get = original_memc_get
@@ -149,7 +151,7 @@ describe("sliding_window", function()
             -- in the previous window the rate was 5/1 = 5 occurences per second
             -- and in the current window we have had only one occurences of the sample
             -- so our estimated count for current window would be following
-            local expected_estimated_count = 5 -- 0.8 * 5 + 1
+            local expected_estimated_count = 4 -- 0.8 * 5 + 0
             -- where 0.8 is (window_size - new_elapsed_time), i.e new remaining_time
             assert_floats_are_equal(expected_estimated_count, estimated_count)
 
@@ -169,6 +171,9 @@ describe("sliding_window", function()
             local estimated_count, delay, err = sw:process_sample(sample)
             assert.is_nil(err)
             assert.is_nil(delay)
+
+            estimated_count, delay, err = sw:process_sample(sample)
+            assert.is_nil(err)
 
             estimated_count, delay, err = sw:process_sample(sample)
             assert.is_nil(err)
@@ -209,6 +214,7 @@ describe("sliding_window", function()
         -- the above counter key was for previous window, and now we move to next window
         ngx_freeze_time(frozen_ngx_now + remaining_time + 0.1, function()
           local estimated_count, delay, err = sw:process_sample(sample)
+          estimated_count, delay, err = sw:process_sample(sample)
           assert.is_nil(err)
           -- the main point in the below expectation is that previous rate is
           -- calculated as 5(correct counter value)/1 and not as 8(actual counter value: limit + 3)/1.

@@ -78,8 +78,13 @@ local function get_desired_delay(self, remaining_time, last_rate, count)
 
   local desired_delay = remaining_time - (self.limit - count) / last_rate
 
-  if desired_delay <= 0 or desired_delay > self.window_size then
-    ngx_log(ngx_ERR, "unexpected value for delay_ms: ", delay_ms,
+  if desired_delay == 0 then
+    -- no delay
+    return nil
+  end
+
+  if desired_delay < 0 or desired_delay > self.window_size then
+    ngx_log(ngx_ERR, "unexpected value for delay: ", delay,
       ", when remaining_time = ", remaining_time,
       " last_rate = ", last_rate,
       " count = ", count,
@@ -105,7 +110,8 @@ end
 --
 -- Return values: estimated_count, delay, err
 -- `estimated_count` - this is what the algorithm expects number of occurences
--- will be for the sample by the end of current window. It is calculated based
+-- will be for the sample by the end of current window excluding the current
+-- occurence of the sample. It is calculated based
 -- on the rate from previous window and extrapolated to the current window.
 -- If estimated_count is bigger than the configured limit, then the function
 -- will also return delay > 0 to suggest that the sample has to be throttled.
@@ -163,14 +169,21 @@ function _M.process_sample(self, sample)
     return nil, nil, err
   end
 
+  -- The below limit checking is only to cope with a racy behaviour where
+  -- counter for the given sample is incremented at the same time by multiple
+  -- sliding_window instances. That is we re-adjust the new count by ignoring
+  -- the current occurence of the sample. Otherwise the limit would
+  -- unncessarily be exceeding.
+  local new_adjusted_count = new_count - 1
+
   estimated_final_count, err =
-    estimate_final_count(self, remaining_time, last_rate, new_count)
+    estimate_final_count(self, remaining_time, last_rate, new_adjusted_count)
   if err then
     return nil, nil, err
   end
-  if estimated_final_count > self.limit then
+  if estimated_final_count >= self.limit then
     local desired_delay =
-      get_desired_delay(self, remaining_time, last_rate, new_count)
+      get_desired_delay(self, remaining_time, last_rate, new_adjusted_count)
     return estimated_final_count, desired_delay, nil
   end
 
