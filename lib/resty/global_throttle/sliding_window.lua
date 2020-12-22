@@ -161,14 +161,6 @@ function _M.process_sample(self, sample)
     return nil, nil, err
   end
 
-  -- incr above might take long enough to make difference, so
-  -- we recalculate time-dependant variables.
-  remaining_time = self.window_size - ngx_now() % self.window_size
-  last_rate, err = get_last_rate(self, sample, ngx_now())
-  if err then
-    return nil, nil, err
-  end
-
   -- The below limit checking is only to cope with a racy behaviour where
   -- counter for the given sample is incremented at the same time by multiple
   -- sliding_window instances. That is we re-adjust the new count by ignoring
@@ -176,15 +168,12 @@ function _M.process_sample(self, sample)
   -- unncessarily be exceeding.
   local new_adjusted_count = new_count - 1
 
-  estimated_final_count, err =
-    estimate_final_count(self, remaining_time, last_rate, new_adjusted_count)
-  if err then
-    return nil, nil, err
-  end
-  if estimated_final_count >= self.limit then
-    local desired_delay =
-      get_desired_delay(self, remaining_time, last_rate, new_adjusted_count)
-    return estimated_final_count, desired_delay, nil
+  if new_adjusted_count >= self.limit then
+    -- incr above might take long enough to make difference, so
+    -- we recalculate time-dependant variables.
+    remaining_time = self.window_size - ngx_now() % self.window_size
+
+    return new_adjusted_count, remaining_time, nil
   end
 
   return estimated_final_count, nil, nil
