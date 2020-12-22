@@ -27,6 +27,10 @@ local function exhaust_limit_and_assert_without_previous_window(sw, sample, limi
   end
 end
 
+local function assert_floats_are_equal(expected, actual)
+  assert.are.same(string.format("%.6f", expected), string.format("%.6f", actual))
+end
+
 describe("sliding_window", function()
   describe("new", function()
     it("requires 'store' argument", function()
@@ -85,7 +89,7 @@ describe("sliding_window", function()
 
           local estimated_count, delay, err = sw:process_sample(sample)
           assert.is_nil(err)
-          assert.are.same(remaining_time, delay)
+          assert_floats_are_equal(remaining_time, delay)
           assert.are.same(limit, estimated_count)
         end)
       end)
@@ -98,36 +102,35 @@ describe("sliding_window", function()
       end)
 
       it("detects exceeding limit in case other sliding window instances increments counter right before the current instance increments", function()
-        for i=1,(limit-2),1 do
+        ngx_freeze_time(frozen_ngx_now, function()
+          for i=1,(limit-2),1 do
+            local estimated_count, delay, err = sw:process_sample(sample)
+            assert.is_nil(err)
+            assert.is_nil(delay)
+            assert.are.same(i, estimated_count)
+          end
+
+          -- this way we simulate other sliding window
+          -- instances increments the same key after this
+          -- sliding window instance "get"s it and before it increments it.
+          local original_memc_get = memcached_store.get
+          local mocked_memc_get = function(self, key)
+            local value, err = original_memc_get(self, key)
+            memcached.with_client(function(memc)
+              memc:incr(key, 2)
+            end)
+            return value, err
+          end
+          memcached_store.get = mocked_memc_get
+
           local estimated_count, delay, err = sw:process_sample(sample)
           assert.is_nil(err)
-          assert.is_nil(delay)
-          assert.are.same(i, estimated_count)
-        end
+          assert_floats_are_equal(remaining_time, delay)
+          assert.are.same(limit + 1, estimated_count)
 
-        local mocked_memcached_store = require("resty.global_throttle.store.memcached")
-        local original_memc_get = mocked_memcached_store.get
-        local mocked_memc_get = function(self, key)
-          local value, err = original_memc_get(key)
-          memcached.with_client(function(memc)
-            memc:incr(key, 2)
-          end)
-          return value, err
-        end
-        mocked_memcached_store.get = mocked_memc_get
-
-        local store, err = mocked_memcached_store.new({ host = memcached.host, port = memcached.port })
-        assert.is_nil(err)
-        assert.is_not_nil(store)
-
-        sw, err = sliding_window_new(store, limit, window_size)
-        assert.is_nil(err)
-        assert.is_not_nil(sw)
-
-        local estimated_count, delay, err = sw:process_sample(sample)
-        assert.is_nil(err)
-        assert.are.same(remaining_time, delay)
-        assert.are.same(limit + 1, estimated_count)
+          -- unmock
+          memcached_store.get = original_memc_get
+        end)
       end)
     end)
 
