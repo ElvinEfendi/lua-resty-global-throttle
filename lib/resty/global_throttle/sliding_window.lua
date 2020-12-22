@@ -2,12 +2,12 @@ local tostring = tostring
 local string_format = string.format
 local math_floor = math.floor
 local ngx_now = ngx.now
+local ngx_log = ngx.log
+local ngx_ERR = ngx.ERR
 local setmetatable = setmetatable
 
 local _M = {}
 local mt = { __index = _M }
-
-local DEFAULT_WINDOW_SIZE = 60 * 1000 -- milliseconds
 
 -- uniquely identifies the window associated with given time
 local function get_id(self, time)
@@ -26,11 +26,25 @@ local function get_last_rate(self, sample, now_ms)
   local a_window_ago_from_now = now_ms - self.window_size
   local last_counter_key = get_counter_key(self, sample, a_window_ago_from_now)
 
-  -- NOTE(elvinefendi): returning 0 as a default value here means
-  -- we will allow spike in the first window or in the window that
-  -- has no immediate previous window with samples.
-  -- What if we default to self.limit here?
-  local last_count = self.store:get(last_counter_key) or 0
+  local last_count, err = self.store:get(last_counter_key)
+  if err then
+    return nil, err
+  end
+  if not last_count then
+    -- NOTE(elvinefendi): returning 0 as a default value here means
+    -- we will allow spike in the first window or in the window that
+    -- has no immediate previous window with samples.
+    -- What if we default to self.limit here?
+    last_count = 0
+  end
+  if last_count > self.limit then
+    -- in process_sample we also reactively check for exceeding limit
+    -- after icnrementing the counter. So even though counter can be higher
+    -- than the limit as a result of racy behaviour we would still throttle
+    -- anyway. That is way it is important to correct the last count here
+    -- to avoid over-punishment.
+    last_count = self.limit
+  end
 
   return last_count / self.window_size
 end
@@ -49,73 +63,32 @@ function _M.new(store, limit, window_size)
   return setmetatable({
     store = store,
     limit = limit,
-    window_size = window_size or DEFAULT_WINDOW_SIZE, -- milliseconds
+    window_size = window_size
   }, mt), nil
 end
 
-function _M.add_sample(self, sample)
-  local now_ms = ngx_now() * 1000
-
-  local counter_key = get_counter_key(self, sample, now_ms)
-
-  local expiry = self.window_size * 2 / 1000 --seconds
-
-  local _, err = self.store:incr(counter_key, 1, expiry)
-  if err then
-    return err
-  end
-
-  return nil
+local function estimate_final_count(self, remaining_time, last_rate, count)
+  return last_rate * remaining_time + count
 end
 
-function _M.is_limit_exceeding(self, sample)
-  local now_ms = ngx_now() * 1000
-
-  local counter_key = get_counter_key(self, sample, now_ms)
-
-  local count, err = self.store:get(counter_key)
-  if err then
-    return nil, nil, err
-  end
-  if not count then
-    count = 0
+local function get_desired_delay(self, remaining_time, last_rate, count)
+  if last_rate == 0 then
+    return remaining_time
   end
 
-  local last_rate = get_last_rate(self, sample, now_ms)
-  local elapsed_time = now_ms % self.window_size
-  local estimated_total_count =
-    last_rate * (self.window_size - elapsed_time) + count
+  local desired_delay = remaining_time - (self.limit - count) / last_rate
 
-  local limit_exceeding = estimated_total_count >= self.limit
-  local delay_ms = nil
-
-  if limit_exceeding then
-    if last_rate == 0 then
-      -- When the last rate is 0, and limit is exceeding that means the limit
-      -- in the current window is precisely met (without estimation,
-      -- refer to the above formula). Which means we have to wait until the
-      -- next window to allow more samples.
-      delay_ms = self.window_size - elapsed_time
-    else
-      -- The following formula is obtained by solving the following equation
-      -- for `delay_ms`:
-      -- last_rate * (self.window_size - (elapsed_time + delay_ms)) + count =
-      --   self.limit - 1
-      -- This equation is comparable to total count estimation for the current
-      -- window formula above. Basically the idea is, how long more (delay_ms)
-      -- should we wait before estimated total count is below the limit again.
-      delay_ms =
-        self.window_size - (self.limit - count) / last_rate - elapsed_time
-    end
-
-    -- Unless weird time drifts happen or counter is borked,
-    -- this should never be true.
-    if delay_ms > self.window_size or delay_ms < 0 then
-      return limit_exceeding, nil, "wrong value for delay_ms: " .. delay_ms
-    end
+  if desired_delay <= 0 or desired_delay > self.window_size then
+    ngx_log(ngx_ERR, "unexpected value for delay_ms: ", delay_ms,
+      ", when remaining_time = ", remaining_time,
+      " last_rate = ", last_rate,
+      " count = ", count,
+      " limit = ", self.limit,
+      " window_size = ", self.window_size)
+    return nil
   end
 
-  return limit_exceeding, delay_ms, nil
+  return desired_delay
 end
 
 -- process_sample first checks if limit exceeding for the given sample.
@@ -142,13 +115,66 @@ end
 -- `err`             - in case there is a problem with processing the sample
 -- this will be a string explaining the problem. In all other cases it is nil.
 function _M.process_sample(self, sample)
-  local now_ms = ngx_now() * 1000
+  local now = ngx_now()
+  local counter_key = get_counter_key(self, sample, now)
+  local remaining_time = self.window_size - now % self.window_size
 
-  local counter_key = get_counter_key(self, sample, now_ms)
+  local count, err = self.store:get(counter_key)
+  if err then
+    return nil, nil, err
+  end
+  if not count then
+    count = 0
+  end
+  if count >= self.limit then
+    -- count can be over the limit because of the racy nature
+    -- when it is at/over the limit we know for sure what is the final
+    -- count and desired delay for the current window, so no need to proceed
+    return count, remaining_time, nil
+  end
 
-  local expiry = self.window_size * 2 / 1000 --seconds
+  local last_rate, err = get_last_rate(self, sample, now)
+  if err then
+    return nil, nil, err
+  end
 
-  return self.store:incr(counter_key, 1, expiry)
+  local estimated_final_count, err =
+    estimate_final_count(self, remaining_time, last_rate, count)
+  if err then
+    return nil, nil, err
+  end
+  if estimated_final_count >= self.limit then
+    local desired_delay =
+      get_desired_delay(self, remaining_time, last_rate, count)
+    return estimated_final_count, desired_delay, nil
+  end
+
+  local expiry = self.window_size * 2
+  local new_count, err = self.store:incr(counter_key, 1, expiry)
+  if err then
+    return nil, nil, err
+  end
+
+  -- incr above might take long enough to make difference, so
+  -- we recalculate time-dependant variables.
+  remaining_time = self.window_size - ngx_now() % self.window_size
+  last_rate, err = get_last_rate(self, sample, ngx_now())
+  if err then
+    return nil, nil, err
+  end
+
+  estimated_final_count, err =
+    estimate_final_count(self, remaining_time, last_rate, new_count)
+  if err then
+    return nil, nil, err
+  end
+  if estimated_final_count > self.limit then
+    local desired_delay =
+      get_desired_delay(self, remaining_time, last_rate, new_count)
+    return estimated_final_count, desired_delay, nil
+  end
+
+  return estimated_final_count, nil, nil
 end
 
 return _M
