@@ -35,15 +35,15 @@ local function rewrite_memc(namespace, cache)
     return ngx.exit(500)
   end
 
-  local _estimated_final_count, delay, err = my_throttle:process(key)
+  local _estimated_final_count, desired_delay, err = my_throttle:process(key)
   if err then
     ngx.log(ngx.ERR, "error while processing key: ", err)
     return ngx.exit(500)
   end
 
-  if delay then
+  if desired_delay then
     if cache then
-      cache:set(key, value, delay)
+      cache:set(key, value, desired_delay)
     end
 
     return ngx.exit(429)
@@ -70,13 +70,13 @@ function _M.rewrite_dict()
 
   local key = ngx.req.get_uri_args()['key']
 
-  local _estimated_final_count, delay, err = my_throttle:process(key)
+  local _estimated_final_count, desired_delay, err = my_throttle:process(key)
   if err then
     ngx.log(ngx.ERR, "error while processing key: ", err)
     return ngx.exit(500)
   end
 
-  if delay then
+  if desired_delay then
     return ngx.exit(429)
   end
 end
