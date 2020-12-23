@@ -1,75 +1,76 @@
-# Development instructions
+# Instructions
 
-### Build dev server
-
-```
-make dev
-```
-
-### Start dev server
+In the root directory of the library where `docker-compose.yaml` is run:
 
 ```
-make dev-run
+docker-compose build
 ```
 
-After this you will should be able to `curl` `localhost:8080` and get successful response back:
+then:
+
+```
+docker-compose up
+```
+
+After this you should be able to `curl` `localhost:8080` and get successful response back:
 
 ```
 > lua-resty-global-throttle (master)$ curl localhost:8080
-Halo!
+ok
 ```
 
-The dev server has lua-resty-global-throttle configured and it will start responding with
-HTTP status code 429 when limit is exceeded. Dev server will use the latest code, which means
+The server has `lua-resty-global-throttle` configured and it will start responding with
+HTTP status code 429 when limit is exceeded. Server will use the latest code, which means
 you can change code and test quickly using this server.
-You can use `hey` (or any other load generator) to cause throttling:
+When you change the code or configuration make sure you run `make reload-proxy`
+so the NGINX picks the latest configuration and Lua code.
+
+You can use `hey` (or any other load generator) to test throttling:
 
 ```
-> lua-resty-global-throttle (master)$ hey -c 1 -q 51 -z 4s http://localhost:8080
+> lua-resty-global-throttle (main)$ hey -c 2 -q 100 -z 6s http://localhost:8080/memc?key=client
 
 Summary:
-  Total:	4.0069 secs
-  Slowest:	0.0880 secs
-  Fastest:	0.0012 secs
-  Average:	0.0042 secs
-  Requests/sec:	50.1632
+  Total:	6.0077 secs
+  Slowest:	0.0415 secs
+  Fastest:	0.0015 secs
+  Average:	0.0035 secs
+  Requests/sec:	198.9098
 
-  Total data:	525 bytes
-  Size/request:	2 bytes
+  Total data:	202825 bytes
+  Size/request:	169 bytes
 
 Response time histogram:
-  0.001 [1]	|
-  0.010 [192]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-  0.019 [4]	|■
-  0.027 [3]	|■
-  0.036 [0]	|
-  0.045 [0]	|
-  0.053 [0]	|
-  0.062 [0]	|
-  0.071 [0]	|
-  0.079 [0]	|
-  0.088 [1]	|
+  0.002 [1]	|
+  0.006 [1110]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.010 [75]	|■■■
+  0.014 [6]	|
+  0.018 [1]	|
+  0.022 [0]	|
+  0.026 [0]	|
+  0.030 [0]	|
+  0.033 [0]	|
+  0.037 [0]	|
+  0.041 [2]	|
 
 
 Latency distribution:
-  10% in 0.0019 secs
-  25% in 0.0022 secs
-  50% in 0.0029 secs
-  75% in 0.0044 secs
-  90% in 0.0066 secs
-  95% in 0.0092 secs
-  99% in 0.0252 secs
+  10% in 0.0020 secs
+  25% in 0.0024 secs
+  50% in 0.0033 secs
+  75% in 0.0041 secs
+  90% in 0.0051 secs
+  95% in 0.0060 secs
+  99% in 0.0095 secs
 
 Details (average, fastest, slowest):
-  DNS+dialup:	0.0001 secs, 0.0012 secs, 0.0880 secs
-  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0066 secs
+  DNS+dialup:	0.0000 secs, 0.0015 secs, 0.0415 secs
+  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0030 secs
   req write:	0.0000 secs, 0.0000 secs, 0.0005 secs
-  resp wait:	0.0039 secs, 0.0011 secs, 0.0878 secs
-  resp read:	0.0001 secs, 0.0000 secs, 0.0014 secs
+  resp wait:	0.0034 secs, 0.0015 secs, 0.0358 secs
+  resp read:	0.0000 secs, 0.0000 secs, 0.0011 secs
 
 Status code distribution:
-  [200]	198 responses
-  [429]	3 responses
+  [200]	36 responses
+  [429]	1159 responses
 ```
-
-Nginx configuration can be customized in `dev/nginx.conf`.
