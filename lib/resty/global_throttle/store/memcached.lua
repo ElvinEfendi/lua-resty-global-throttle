@@ -87,7 +87,7 @@ function _M.get(self, key)
   return with_client(self, function(memc)
     local value, flags, err = memc:get(key)
     if err then
-      return nil, err
+      return nil, string_format("'get' failed for '%s': %s", key, err)
     end
     if value == nil and flags == nil and err == nil then
       return nil, nil
