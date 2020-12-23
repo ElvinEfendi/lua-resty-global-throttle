@@ -23,7 +23,19 @@ After that you can create an instance of throttle like following where 100 is th
 The third parameter tells the throttler what store provider it should use to store its internal statistics.
 
 ```
-local my_throttle, err = global_throttle.new("my-namespace", 100, 2,  { provider = "shared_dict", name = "counters" })
+local memc_host = os.getenv("MEMCACHED_HOST")
+local memc_port = os.getenv("MEMCACHED_PORT")
+
+...
+
+local my_throttle, err = global_throttle.new(namespace, 10, 2, {
+  provider = "memcached",
+  host = memc_host,
+  port = memc_port,
+  connect_timeout = 15,
+  max_idle_timeout = 10000,
+  pool_size = 100,
+})
 ```
 
 Finally you call following everytime before whatever it is you're throttling:
