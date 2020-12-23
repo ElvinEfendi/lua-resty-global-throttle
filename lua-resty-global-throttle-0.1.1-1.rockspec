@@ -1,16 +1,14 @@
 package = "lua-resty-global-throttle"
-version = "0.1.0-1"
+version = "0.1.1-1"
 source = {
    url = "git://github.com/ElvinEfendi/lua-resty-global-throttle",
-   tag = "v0.1.0"
+   tag = "v0.1.1"
 }
 description = {
-   summary = "General purpose flow control with shared storage support.",
+   summary = "Distributed flow control middleware for Openresty.",
    detailed = [[
-      A general throttle implementation for Openresty with shared storage support among others.
+      A generic, distributed throttle implementation for Openresty with memcached storage support among others.
       It can be used to throttle any action let it be a request or a function call.
-
-      Currently memcached and Lua shared dictionary are supported.
    ]],
    homepage = "https://github.com/ElvinEfendi/lua-resty-global-throttle",
    license = "MIT"

@@ -4,7 +4,7 @@ local sliding_window_new = require("resty.global_throttle.sliding_window").new
 local setmetatable = setmetatable
 local string_format = string.format
 
-local _M = { _VERSION = "0.1.0" }
+local _M = { _VERSION = "0.1.1" }
 local mt = { __index = _M }
 
 local MAX_NAMESPACE_LEN = 20
