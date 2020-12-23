@@ -19,7 +19,7 @@ end
 -- per given sliding window instance in the given window.
 local function get_counter_key(self, sample, time)
   local id = get_id(self, time)
-  return string_format("%s.%s.counter", sample, id)
+  return string_format("%s.%s.%s.counter", self.namespace, sample, id)
 end
 
 local function get_last_rate(self, sample, now_ms)
@@ -49,7 +49,11 @@ local function get_last_rate(self, sample, now_ms)
   return last_count / self.window_size
 end
 
-function _M.new(store, limit, window_size)
+function _M.new(namespace, store, limit, window_size)
+  if not namespace then
+    return nil, "'namespace' parameter is missing"
+  end
+
   if not store then
     return nil, "'store' parameter is missing"
   end
@@ -61,6 +65,7 @@ function _M.new(store, limit, window_size)
   end
 
   return setmetatable({
+    namespace = namespace,
     store = store,
     limit = limit,
     window_size = window_size

@@ -1,21 +1,21 @@
 local memcached_store = require("resty.global_throttle.store.memcached")
 local sliding_window_new = require("resty.global_throttle.sliding_window").new
 
-local function new_sliding_window(limit, window_size)
+local function new_sliding_window(namespace, limit, window_size)
   local store, err = memcached_store.new({ host = memcached.host, port = memcached.port })
   assert.is_nil(err)
   assert.is_not_nil(store)
 
   local sw
-  sw, err = sliding_window_new(store, limit, window_size)
+  sw, err = sliding_window_new(namespace, store, limit, window_size)
   assert.is_nil(err)
   assert.is_not_nil(sw)
 
   return sw
 end
 
-local function get_counter_key(sample, ngx_now, window_size)
-  return string.format("%s.%s.counter", sample, tostring(math.floor(ngx_now / window_size)))
+local function get_counter_key(namespace, sample, ngx_now, window_size)
+  return string.format("%s.%s.%s.counter", namespace, sample, tostring(math.floor(ngx_now / window_size)))
 end
 
 local function exhaust_limit_and_assert_without_previous_window(sw, sample, limit)
@@ -55,6 +55,7 @@ describe("sliding_window", function()
 
   describe("process_sample", function()
     local sw
+    local namespace = "login-endpoint"
     local limit = 5
     local window_size = 1
     local frozen_ngx_now = 1608261277.678
@@ -62,14 +63,14 @@ describe("sliding_window", function()
     local elapsed_time = 0.678 -- (frozen_ngx_now - window_start)
     local remaining_time = 0.322 -- (window_size - elapsed_time)
     local sample = "client1"
-    local counter_key = get_counter_key(sample, frozen_ngx_now, window_size)
+    local counter_key = get_counter_key(namespace, sample, frozen_ngx_now, window_size)
 
     before_each(function()
       local ok, er = memcached.flush_all()
       assert.is_nil(err)
       assert.are.same(1, ok)
 
-      sw = new_sliding_window(limit, window_size)
+      sw = new_sliding_window(namespace, limit, window_size)
     end)
 
     describe("when there's no previous window", function()
@@ -102,6 +103,15 @@ describe("sliding_window", function()
         ngx_freeze_time(frozen_ngx_now, function()
           exhaust_limit_and_assert_without_previous_window(sw, sample, limit)
           exhaust_limit_and_assert_without_previous_window(sw, "another_sample", limit)
+        end)
+      end)
+
+      it("differentiates namespaces from one another", function()
+        local another_sw = new_sliding_window("signup-page", limit, window_size)
+
+        ngx_freeze_time(frozen_ngx_now, function()
+          exhaust_limit_and_assert_without_previous_window(sw, sample, limit)
+          exhaust_limit_and_assert_without_previous_window(another_sw, sample, limit)
         end)
       end)
 
@@ -231,7 +241,7 @@ describe("sliding_window", function()
 
           -- travel to next to next window
           ngx_time_travel(remaining_time + 0.2, function()
-            local new_counter_key = get_counter_key(sample, ngx.now(), window_size)
+            local new_counter_key = get_counter_key(namespace, sample, ngx.now(), window_size)
             local ok, err = memcached.with_client(function(memc)
               return memc:add(new_counter_key, limit, window_size * 2)
             end)
@@ -252,7 +262,7 @@ describe("sliding_window", function()
 
           -- travel to next to next window
           ngx_time_travel(remaining_time + 0.1, function()
-            local new_counter_key = get_counter_key(sample, ngx.now(), window_size)
+            local new_counter_key = get_counter_key(namespace, sample, ngx.now(), window_size)
             local ok, err = memcached.with_client(function(memc)
               return memc:add(new_counter_key, limit + 3, window_size * 2)
             end)
