@@ -7,7 +7,25 @@ local string_format = string.format
 local _M = { _VERSION = "0.1.0" }
 local mt = { __index = _M }
 
-function _M.new(limit, window_size_in_seconds, store_options)
+local MAX_NAMESPACE_LEN = 20
+
+function _M.new(namespace, limit, window_size_in_seconds, store_options)
+  if not namespace then
+    return nil, "'namespace' param is missing"
+  end
+
+  namespace = namespace:lower()
+
+  if namespace ~= namespace:match("[%a%d-]+") then
+    return nil, "'namespace' can have only letters, digits and hyphens"
+  end
+
+  if namespace:len() > MAX_NAMESPACE_LEN then
+    return nil,
+      string_format("'namespace' can be at most %s characters",
+        MAX_NAMESPACE_LEN)
+  end
+
   if not store_options then
     return nil, "'store_options' param is missing"
   end
@@ -18,14 +36,13 @@ function _M.new(limit, window_size_in_seconds, store_options)
   end
 
   local sw
-  sw, err = sliding_window_new(store, limit, window_size_in_seconds)
+  sw, err = sliding_window_new(namespace, store, limit, window_size_in_seconds)
   if not sw then
     return nil, "error while creating sliding window instance: " .. err
   end
 
   return setmetatable({
     sliding_window = sw,
-    limit = limit,
   }, mt), nil
 end
 
