@@ -5,5 +5,6 @@ set -o nounset
 set -o pipefail
 
 resty \
+  -I /global_throttle/lib \
   --shdict "my_global_throttle 1M" \
   spec/run.lua -o gtest --shuffle -v spec/**/ "$@"
