@@ -10,8 +10,8 @@ reload-proxy:
 	docker-compose exec proxy openresty -s reload
 
 check:
-	docker-compose exec -T -w /app proxy scripts/check
+	docker-compose exec -T -w /global_throttle proxy scripts/check
 
 # use --filter PATTERN flag to focus on matching tests only
 spec:
-	docker-compose exec -T -w /app proxy scripts/spec $(ARGS)
+	docker-compose exec -T -w /global_throttle proxy scripts/spec $(ARGS)
