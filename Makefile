@@ -3,7 +3,7 @@ LUA_INCLUDE_DIR ?= $(PREFIX)/include
 LUA_LIB_DIR ?=     $(PREFIX)/lib/lua/$(LUA_VERSION)
 INSTALL ?= install
 
-.PHONY: install misc dev-up dev-down check spec
+.PHONY: install misc dev-up dev-down check spec release
 
 install:
 	$(INSTALL) -d $(DESTDIR)/$(LUA_LIB_DIR)/resty
@@ -28,3 +28,11 @@ check:
 # use --filter PATTERN flag to focus on matching tests only
 spec:
 	docker-compose exec -T -w /global_throttle proxy scripts/spec $(ARGS)
+
+release:
+	@echo "bump version and tag in rockspec"
+	@echo "rename rockspec to include the new version"
+	@echo "grep for VERSION in lib and bump the versions there"
+	@echo "create a release tag in github interface"
+	@echo "run 'luarocks pack lua-resty-global-throttle-<new version>.rockspec' to generate .rock file"
+	@echo "Open https://luarocks.org/upload and upload the new .rockspec and .rock there"
