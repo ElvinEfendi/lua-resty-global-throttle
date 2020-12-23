@@ -10,7 +10,7 @@ luarocks install lua-resty-global-throttle
 
 ### Usage
 
-A general throttle implementation for Openresty. It can be used to throttle any action let it be a request or a function call.
+A generic, distributed throttling implementation for Openresty. It can be used to throttle any action let it be a request or a function call.
 Currently only approximate sliding window rate limiting is implemented.
 
 First require the module:
@@ -19,24 +19,22 @@ First require the module:
 local global_throttle = require "resty.global_throttle"
 ```
 
-After that you can create an instance of throttle like following where 100 is the limit that will be enforced per 2 seconds window. The third parameter tells the throttler what store provider it should use to
-store its internal statistics.
+After that you can create an instance of throttle like following where 100 is the limit that will be enforced per 2 seconds window.
+The third parameter tells the throttler what store provider it should use to store its internal statistics.
 
 ```
-local my_throttle, err = global_throttle.new(100, 2,  { provider = "shared_dict", name = "counters" })
+local my_throttle, err = global_throttle.new("my-namespace", 100, 2,  { provider = "shared_dict", name = "counters" })
 ```
 
 Finally you call following everytime before whatever it is you're throttling:
 
 ```
-local should_throttle, err = my_throttle:process("identifier of whatever it is your are throttling")
+local estimated_final_count, desired_delay, err = my_throttle:process("identifier of whatever it is your are throttling")
 ```
 
-### Test
+When `desired_delay` exists, it means the limit is exceeding and client should be throttled for `desired_delay` seconds.
 
-There are integration and unit test suits. Integration tests are in folder `t` while unit tests are in `spec`.
-In order to run tests, first build the Docker image using `make image` and then
-use `make test` for integration and `make spec` for running unit tests.
+For more complete understanding of how to use this library, refer to `examples` directory.
 
 ### Contributions and Development
 
@@ -44,15 +42,11 @@ The library is designed to be extendable. Currently only approximate sliding win
 
 Storage providers are implemented in `lib/resty/global_throttle/store/`.
 
-`dev/README.md` has instructions showing how to do local development and iterate quickly.
-
 ### TODO
 
+ - [ ] Redis store provider
  - [ ] Support Sliding Window algorithm (where bursts are allowed)
  - [ ] Implement Leaky Bucket
- - [ ] Implement another store based on https://github.com/openresty/lua-resty-lrucache
- - [ ] Provide an example use case for every implementation
- - [ ] Redis store provider
 
 ### References
 
