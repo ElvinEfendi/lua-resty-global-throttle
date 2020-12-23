@@ -1,4 +1,17 @@
-.PHONY: misc dev-up dev-down check spec
+PREFIX ?=          /usr/local
+LUA_INCLUDE_DIR ?= $(PREFIX)/include
+LUA_LIB_DIR ?=     $(PREFIX)/lib/lua/$(LUA_VERSION)
+INSTALL ?= install
+
+.PHONY: install misc dev-up dev-down check spec
+
+install:
+	$(INSTALL) -d $(DESTDIR)/$(LUA_LIB_DIR)/resty
+	$(INSTALL) -d $(DESTDIR)/$(LUA_LIB_DIR)/resty/global_throttle
+	$(INSTALL) -d $(DESTDIR)/$(LUA_LIB_DIR)/resty/global_throttle/store
+	$(INSTALL) lib/resty/*.lua $(DESTDIR)/$(LUA_LIB_DIR)/resty
+	$(INSTALL) lib/resty/global_throttle/*.lua $(DESTDIR)/$(LUA_LIB_DIR)/resty/global_throttle
+	$(INSTALL) lib/resty/global_throttle/store/*.lua $(DESTDIR)/$(LUA_LIB_DIR)/resty/global_throttle/store
 
 misc:
 	brew install hey
