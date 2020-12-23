@@ -1,3 +1,4 @@
+local memcached = require("resty.memcached")
 local global_throttle = require("resty.global_throttle")
 
 local _M = {}
@@ -12,6 +13,8 @@ local memc_host = os.getenv("MEMCACHED_HOST")
 local memc_port = os.getenv("MEMCACHED_PORT")
 
 local function rewrite_memc(namespace, cache)
+  --ngx.log(ngx.NOTICE, "timestamp: ", ngx.now())
+
   local key = ngx.req.get_uri_args()['key']
 
   local limit_exceeding
@@ -79,6 +82,55 @@ function _M.rewrite_dict()
   if desired_delay then
     return ngx.exit(429)
   end
+end
+
+
+-- This can be used to inspect what is in the
+-- store. It assumes you disable expiry in the store.
+-- You can obtain `ts` and `te` by logging ngx.now().
+function _M.stats()
+  local test_start = ngx.req.get_uri_args()['ts']
+  local test_end = ngx.req.get_uri_args()['te']
+  local namespace = ngx.req.get_uri_args()['ns']
+  local sample = ngx.req.get_uri_args()['s']
+  local window_size = ngx.req.get_uri_args()['ws']
+
+  local memc, err = memcached:new()
+  if err then
+    ngx.log(ngx.ERR, err)
+    return ngx.exit(500)
+  end
+
+  local ok
+  ok, err = memc:connect(memc_host, memc_port)
+  if not ok then
+    ngx.log(ngx.ERR, err)
+    return ngx.exit(500)
+  end
+
+  local namespace = "memc"
+  local sample = "client"
+  local window_size = 2
+  local window_id_start = math.floor(test_start / 2)
+  local window_id_end = math.floor(test_end / 2)
+
+  local response = ""
+  for i=window_id_start,window_id_end,1 do
+    local counter_key = string.format("%s.%s.%s.counter", namespace, sample, i)
+    local value, _, err = memc:get(counter_key)
+    if err then
+      ngx.log(ngx.ERR, "error when getting key: ", err)
+    end
+    response = response .. "\n" .. counter_key .. " : " .. tostring(value)
+  end
+
+  ok, err = memc:set_keepalive(10000, 100)
+  if not ok then
+    ngx.log(ngx.ERR, err)
+    return ngx.exit(500)
+  end
+
+  ngx.say(response)
 end
 
 return _M
