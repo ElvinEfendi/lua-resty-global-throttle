@@ -7,7 +7,7 @@ local string_format = string.format
 local _M = { _VERSION = "0.1.1" }
 local mt = { __index = _M }
 
-local MAX_NAMESPACE_LEN = 20
+local MAX_NAMESPACE_LEN = 35
 
 function _M.new(namespace, limit, window_size_in_seconds, store_options)
   if not namespace then

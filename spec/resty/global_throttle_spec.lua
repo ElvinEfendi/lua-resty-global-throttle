@@ -30,9 +30,10 @@ describe("global_throttle", function()
       assert.is_not_nil(my_throttle)
     end)
 
-    it("requires namespace to have maximum length of 20 characters", function()
-      local my_throttle, err = global_throttle.new("my-throttle-is-somethig", 10, 5, { provider = "shared_dict", name = "my_global_throttle" })
-      assert.are.same("'namespace' can be at most 20 characters", err)
+    it("requires namespace to have maximum length of 35 characters", function()
+      local ns = "my-throttle-is-somethig-b-b-b-b-b-b-bb"
+      local my_throttle, err = global_throttle.new(ns, 10, 5, { provider = "shared_dict", name = "my_global_throttle" })
+      assert.are.same("'namespace' can be at most 35 characters", err)
       assert.is_nil(my_throttle)
     end)
 
