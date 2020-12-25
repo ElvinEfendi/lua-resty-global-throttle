@@ -48,6 +48,15 @@ When `desired_delay` exists, it means the limit is exceeding and client should b
 
 For more complete understanding of how to use this library, refer to `examples` directory.
 
+### Production considerations
+
+1. Ensure you configure the connection pool size properly. Basically if your store (i.e memcached) can handle `n` concurrent connections and your NGINX has `m` workers,
+then the connection pool size should be configured as `n/m`. That is because the configured pool size is per NGINX worker.
+For example, if your store usually handles 1000 concurrent requests and you have 10 NGINX workers,
+then the connection pool size should be 100. Similarly if you have `p` different NGINX instances, then connection pool size should be `n/m/p`.
+2. Be careful when caching decisions based on `desired_delay`, sometimes it is too small that your cache can interpret it as 0 and cache indefinitely.
+Also caching for very little time probably does not add any benefit.
+
 ### Contributions and Development
 
 The library is designed to be extendable. Currently only approximate sliding window algorithm is implemented in `lib/resty/global_throttle/sliding_window.lua`. It can be used as a reference point to implement other algorithms.

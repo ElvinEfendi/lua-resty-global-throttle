@@ -3,6 +3,10 @@ local global_throttle = require("resty.global_throttle")
 
 local _M = {}
 
+-- it does not make sense to cache decision for too little time
+-- the benefit of caching likely is negated if we cache for too little time
+local CACHE_THRESHOLD = 0.001
+
 local lrucache = require("resty.lrucache")
 local process_cache, err = lrucache.new(200)
 if not process_cache then
@@ -46,7 +50,9 @@ local function rewrite_memc(namespace, cache)
 
   if desired_delay then
     if cache then
-      cache:set(key, value, desired_delay)
+      if desired_delay > CACHE_THRESHOLD then
+        cache:add(key, value, desired_delay)
+      end
     end
 
     return ngx.exit(429)
