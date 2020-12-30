@@ -1,8 +1,8 @@
 package = "lua-resty-global-throttle"
-version = "0.1.1-1"
+version = "0.2.0-1"
 source = {
    url = "git://github.com/ElvinEfendi/lua-resty-global-throttle",
-   tag = "v0.1.1"
+   tag = "v0.2.0"
 }
 description = {
    summary = "Distributed flow control middleware for Openresty.",
