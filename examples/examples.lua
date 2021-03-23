@@ -42,7 +42,7 @@ local function rewrite_memc(namespace, cache)
     return ngx.exit(500)
   end
 
-  local _estimated_final_count, desired_delay, err = my_throttle:process(key)
+  local _estimated_final_count, desired_delay, remaining_time, err = my_throttle:process(key)
   if err then
     ngx.log(ngx.ERR, "error while processing key: ", err)
     return ngx.exit(500)
@@ -79,7 +79,7 @@ function _M.rewrite_dict()
 
   local key = ngx.req.get_uri_args()['key']
 
-  local _estimated_final_count, desired_delay, err = my_throttle:process(key)
+  local _estimated_final_count, desired_delay, remaining_time, err = my_throttle:process(key)
   if err then
     ngx.log(ngx.ERR, "error while processing key: ", err)
     return ngx.exit(500)
@@ -88,6 +88,21 @@ function _M.rewrite_dict()
   if desired_delay then
     return ngx.exit(429)
   end
+end
+
+function _M.process_output()
+  local my_throttle, err = global_throttle.new("dict", 10, 60, {
+    provider = "shared_dict",
+    name = "counters"
+  })
+
+  local key = ngx.req.get_uri_args()['key']
+
+  local _estimated_final_count, desired_delay, remaining_time, err = my_throttle:process(key)
+
+  return ngx.say(string.format("\nestimated_final_count=%s\ndesired_delay=%s\nremaining_time=%s\nerr=%s",
+   _estimated_final_count, desired_delay, remaining_time,err))  
+  
 end
 
 
