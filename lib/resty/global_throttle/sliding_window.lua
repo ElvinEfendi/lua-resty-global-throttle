@@ -109,7 +109,7 @@ end
 -- occurences of this sample to exceed the limit. Therefore if this check shows
 -- that the limit is exceeding then we again calculate necessary delay.
 --
--- Return values: estimated_count, delay, err
+-- Return values: estimated_count, delay, remaining_time, err
 -- `estimated_count` - this is what the algorithm expects number of occurences
 -- will be for the sample by the end of current window excluding the current
 -- occurence of the sample. It is calculated based
@@ -119,6 +119,8 @@ end
 -- `delay`           - this is either strictly bigger than 0 in case limit is
 -- exceeding, or nil in case rate of occurences of the sample is under the
 -- limit. The unit is second.
+-- `remaining_time`  - this returns the time left within the current window.
+--  The unit is second.
 -- `err`             - in case there is a problem with processing the sample
 -- this will be a string explaining the problem. In all other cases it is nil.
 function _M.process_sample(self, sample)
@@ -137,20 +139,20 @@ function _M.process_sample(self, sample)
     -- count can be over the limit because of the racy nature
     -- when it is at/over the limit we know for sure what is the final
     -- count and desired delay for the current window, so no need to proceed
-    return count, remaining_time, nil
+    return count, nil, remaining_time, nil
   end
 
   local last_rate
   last_rate, err = get_last_rate(self, sample, now)
   if err then
-    return nil, nil, err
+    return nil, nil, nil, err
   end
 
   local estimated_final_count = last_rate * remaining_time + count
   if estimated_final_count >= self.limit then
     local desired_delay =
       get_desired_delay(self, remaining_time, last_rate, count)
-    return estimated_final_count, desired_delay, nil
+    return estimated_final_count, desired_delay, remaining_time, nil
   end
 
   local expiry = self.window_size * 2
@@ -172,10 +174,10 @@ function _M.process_sample(self, sample)
     -- we recalculate time-dependant variables.
     remaining_time = self.window_size - ngx_now() % self.window_size
 
-    return new_adjusted_count, remaining_time, nil
+    return new_adjusted_count, nil, remaining_time, nil
   end
 
-  return estimated_final_count, nil, nil
+  return estimated_final_count, nil, remaining_time, nil
 end
 
 return _M
