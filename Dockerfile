@@ -2,7 +2,7 @@ FROM openresty/openresty:stretch-fat
 
 RUN apt-get update && \
   apt-get -yq install cpanminus build-essential libreadline-dev unzip && \
-  curl -sSL https://luarocks.org/releases/luarocks-3.1.3.tar.gz -o luarocks-3.1.3.tar.gz && \
+  curl -sSL https://github.com/luarocks/luarocks/archive/refs/tags/v3.1.3.tar.gz -o luarocks-3.1.3.tar.gz && \
     tar zxpf luarocks-3.1.3.tar.gz && \
     cd luarocks-3.1.3 && \
     ./configure --prefix=/usr/local/openresty/luajit \
