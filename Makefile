@@ -19,6 +19,8 @@ dev-up:
 	docker-compose up -d
 dev-down:
 	docker-compose down
+dev-build:
+	docker-compose up -d --build
 reload-proxy:
 	docker-compose exec proxy openresty -s reload
 
