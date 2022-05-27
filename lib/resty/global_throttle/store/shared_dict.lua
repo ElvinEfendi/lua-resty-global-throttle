@@ -40,7 +40,7 @@ end
 
 function _M.get(self, key)
   local value = self.dict:get(key)
-  if not value == nil then
+  if (not value) == nil then
     return nil, "not found"
   end
 
