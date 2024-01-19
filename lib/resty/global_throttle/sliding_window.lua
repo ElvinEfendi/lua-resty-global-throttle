@@ -64,12 +64,12 @@ function _M.new(namespace, store, limit, window_size)
   }, mt), nil
 end
 
-local function get_desired_delay(self, remaining_time, last_rate, count)
-  if last_rate == 0 then
+local function get_desired_delay(self, remaining_time, cur_rate, count)
+  if cur_rate == 0 then
     return remaining_time
   end
 
-  local desired_delay = remaining_time - (self.limit - count) / last_rate
+  local desired_delay = remaining_time - (self.limit - count) / cur_rate
 
   if desired_delay == 0 then
     -- no delay
@@ -82,7 +82,7 @@ local function get_desired_delay(self, remaining_time, last_rate, count)
   if desired_delay < 0 or desired_delay > self.window_size then
     ngx_log(ngx_ERR, "unexpected value for delay: ", desired_delay,
       ", when remaining_time = ", remaining_time,
-      " last_rate = ", last_rate,
+      " last_rate = ", cur_rate,
       " count = ", count,
       " limit = ", self.limit,
       " window_size = ", self.window_size)
@@ -141,10 +141,11 @@ function _M.process_sample(self, sample)
     return nil, nil, err
   end
 
-  local estimated_final_count = last_rate * remaining_time + count
+  local cur_rate = (last_rate * remaining_time + count) / self.window_size
+  local estimated_final_count = cur_rate * remaining_time + count
   if estimated_final_count >= self.limit then
     local desired_delay =
-      get_desired_delay(self, remaining_time, last_rate, count)
+      get_desired_delay(self, remaining_time, cur_rate, count)
     return estimated_final_count, desired_delay, nil
   end
 
