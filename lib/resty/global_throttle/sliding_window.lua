@@ -37,14 +37,6 @@ local function get_last_rate(self, sample, now_ms)
     -- What if we default to self.limit here?
     last_count = 0
   end
-  if last_count > self.limit then
-    -- in process_sample we also reactively check for exceeding limit
-    -- after icnrementing the counter. So even though counter can be higher
-    -- than the limit as a result of racy behaviour we would still throttle
-    -- anyway. That is way it is important to correct the last count here
-    -- to avoid over-punishment.
-    last_count = self.limit
-  end
 
   return last_count / self.window_size
 end
@@ -84,6 +76,9 @@ local function get_desired_delay(self, remaining_time, last_rate, count)
     return nil
   end
 
+  if desired_delay > remaining_time then
+    return remaining_time
+  end
   if desired_delay < 0 or desired_delay > self.window_size then
     ngx_log(ngx_ERR, "unexpected value for delay: ", desired_delay,
       ", when remaining_time = ", remaining_time,
