@@ -79,14 +79,9 @@ local function get_desired_delay(self, remaining_time, cur_rate, count)
   if desired_delay > remaining_time then
     return remaining_time
   end
-  if desired_delay < 0 or desired_delay > self.window_size then
-    ngx_log(ngx_ERR, "unexpected value for delay: ", desired_delay,
-      ", when remaining_time = ", remaining_time,
-      " last_rate = ", cur_rate,
-      " count = ", count,
-      " limit = ", self.limit,
-      " window_size = ", self.window_size)
-    return nil
+
+  if desired_delay <= 0 then
+      return nil;
   end
 
   return desired_delay
